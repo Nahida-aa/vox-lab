@@ -1,0 +1,9 @@
+[workspace]
+members = ["packages/tts-cv","packages/vox-core","packages/voxcpm-cloud",
+    "submodule/voxcpm-rs",
+    "submodule/voxcpm-rs/vendor/patched/burn-cubecl",
+    "submodule/voxcpm-rs/vendor/patched/cubecl-spirv",
+]
+
+[workspace.dependencies]
+clap = { version = "4", features = ["derive"] }

@@ -1,0 +1,6 @@
+[submodule "submodule/voxcpm-rs"]
+	path = submodule/voxcpm-rs
+	url = git@github.com:Nahida-aa/voxcpm-rs.git
+[submodule "submodule/VoxCPM"]
+	path = submodule/VoxCPM
+	url = https://github.com/OpenBMB/VoxCPM.git

@@ -1,0 +1,41 @@
+# ── 模型权重 / 运行数据（大文件，不入库）──
+models/
+data/
+
+# ── 个人配置（差异大，不入库）──
+settings.json
+settings.jsonc
+.env
+
+# ── Rust ──
+/target
+**/target
+Cargo.lock.bak
+
+# ── Node/TS ──
+node_modules/
+packages/*/node_modules/
+*.tsbuildinfo
+
+# ── Python（参考子模块外的本地产物）──
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ── 本地临时 / 产物 ──
+tmp/
+.DS_Store
+*.local.md
+
+# ── 编辑器 / 系统 ──
+.idea/
+.vscode/
+*.swp
+
+
+# Added by cargo
+#
+# already existing elements were commented out
+
+#/target

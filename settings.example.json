@@ -1,0 +1,40 @@
+{
+  "$schema": "./settings.schema.json",
+  "comment": "从本文件复制为 settings.jsonc 并按本机修改。settings.jsonc 已被 gitignore，不入库。",
+
+  "model_dir": "models/voxcpm2",
+
+  "default_runtime": "burn",
+  "default_device": "cpu",
+
+  "log_level": "info",
+
+  "server": {
+    "host": "127.0.0.1",
+    "port": 0,
+    "auto_port": true
+  },
+
+  "runtimes": {
+    "burn": {
+      "device": "cpu",
+      "subdir": "burn",
+      "features": ["cpu"]
+    },
+    "pytorch": {
+      "device": "cpu",
+      "subdir": "pytorch",
+      "num_threads": 0
+    },
+    "cloud": {
+      "api_url": "https://voxcpm.modelbest.cn"
+    }
+  },
+
+  "generation": {
+    "cfg_value": 2.0,
+    "dit_steps": 10,
+    "response_format": "wav",
+    "sample_rate": 48000
+  }
+}
