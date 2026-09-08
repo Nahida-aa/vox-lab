@@ -1,0 +1,17 @@
+{
+  "name": "@tts-vc/voxcpm-cloud",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:cloud": "tsx src/test.ts --target cloud",
+    "test:local": "tsx src/test.ts --target local"
+  },
+  "dependencies": {
+    "@gradio/client": "^1.6.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
