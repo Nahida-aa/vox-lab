@@ -131,7 +131,7 @@
 **待办**：
 - [x] Rust `cloud.rs` (VoxCPMCloud/Config/TtsResult) 移入 `voxcpm-cloud`
 - [x] Rust `wav.rs` 移入 `vox-core`；自研 `gradio_client.rs` 已删除，改用官方推荐的 `gradio` crate（支持 Gradio 4/5/6）
-- [x] cloud 冒烟 bin (`main.rs`) 转为 example 或 main
+- [x] 冒烟 CLI 移为 `examples/smoke.rs`（clap 派生参数），`main.rs` 删除
 - [ ] LocalDub 侧 `stages/tts/mod.rs` 的依赖切换 (见未决)
 - [ ] `packages/voxlab` 在 LocalDub 侧退役
 
