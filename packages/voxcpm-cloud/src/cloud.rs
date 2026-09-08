@@ -1,12 +1,12 @@
-//! Rust port of the `VoxCPMCloud` TTS backend (packages/voxlab/src/engines/voxcpm/cloud.ts).
+//! VoxCPM cloud (Gradio) TTS backend.
 //!
-//! Uses the in-crate [`crate::gradio_client::GradioClient`] to talk to a Gradio 5
-//! `/generate` endpoint (e.g. https://voxcpm.modelbest.cn).
+//! 使用 [`gradio`] crate（Gradio 官方推荐的 Rust 客户端，支持 Gradio 4/5/6）
+//! 调用 `/generate`。TS 参考实现见 `src/index.ts`
+//! （契约实测自 https://voxcpm.modelbest.cn，Gradio 6.10）。
 
-use serde_json::Value;
-use serde_json::json;
+use anyhow::anyhow;
+use gradio::{Client, ClientOptions, PredictionInput, PredictionOutput};
 
-use vox_core::GradioClient;
 use vox_core::wav;
 
 pub const DEFAULT_API_URL: &str = "https://voxcpm.modelbest.cn";
@@ -24,7 +24,7 @@ pub struct VoxCPMCloudConfig {
 
 #[derive(Debug)]
 pub struct VoxCPMCloud {
-    client: GradioClient,
+    client: Client,
     control_instruction: String,
 }
 
@@ -41,8 +41,10 @@ impl VoxCPMCloud {
         let base_url = config
             .api_url
             .unwrap_or_else(|| DEFAULT_API_URL.to_string());
+        // `new_sync` 会拉取 /config 与 /info (由 crate 内部完成), 直传 URL 即可。
+        let client = Client::new_sync(&base_url, ClientOptions::default())?;
         Ok(Self {
-            client: GradioClient::connect(&base_url)?,
+            client,
             control_instruction: config.control_instruction.unwrap_or_default(),
         })
     }
@@ -59,43 +61,33 @@ impl VoxCPMCloud {
     ) -> anyhow::Result<TtsResult> {
         let t_start = std::time::Instant::now();
 
-        // Upload the local reference audio, then reference it by server path/url.
-        let ref_file = self.client.handle_file(reference_wav_path)?;
-
-        let data: Vec<Value> = vec![
-            json!(text),
-            json!(self.control_instruction),
-            json!({ "path": ref_file.path, "url": ref_file.url, "meta": { "_type": "gradio.FileData" } }),
-            json!(false),                     // use_prompt_text / is_ultimate
-            json!(prompt_text.unwrap_or("")), // prompt_text_value
-            json!(cfg_value),                 // cfg_value
-            json!(false),                     // do_normalize
-            json!(false),                     // denoise / ref_denoise
-            json!(10),                        // dit_steps
-            json!(""),                        // user_id
+        // 位置参数顺序 (与 TS index.ts / Gradio 6.10 契约一致):
+        //   text, control_instruction, ref_wav, use_prompt_text, prompt_text_value,
+        //   cfg_value, do_normalize, denoise, dit_steps, user_id
+        let inputs = vec![
+            PredictionInput::from_value(text),
+            PredictionInput::from_value(&self.control_instruction),
+            PredictionInput::from_file(reference_wav_path),
+            PredictionInput::from_value(false),
+            PredictionInput::from_value(prompt_text.unwrap_or("")),
+            PredictionInput::from_value(cfg_value),
+            PredictionInput::from_value(false),
+            PredictionInput::from_value(false),
+            PredictionInput::from_value(10),
+            PredictionInput::from_value(""),
         ];
 
-        let result = self.client.predict("/generate", data)?;
+        let outputs = self.client.predict_sync("/generate", inputs)?;
 
-        // The complete payload's first element is the audio FileData; the rest may be null.
-        let audio = result
+        let audio = outputs
             .into_iter()
-            .find_map(|v| v.as_object().map(|o| o.clone()))
-            .ok_or_else(|| anyhow::anyhow!("generate returned no audio FileData"))?;
-        let audio_url = audio
-            .get("url")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty())
-            .or_else(|| {
-                audio
-                    .get("path")
-                    .and_then(|v| v.as_str())
-                    .filter(|s| !s.is_empty())
+            .find_map(|o| match o {
+                PredictionOutput::File(f) => Some(f),
+                _ => None,
             })
-            .ok_or_else(|| anyhow::anyhow!("generate returned no audio url/path"))?
-            .to_string();
+            .ok_or_else(|| anyhow!("generate 返回无音频 FileData"))?;
 
-        let wav_bytes = self.client.download(&audio_url)?;
+        let wav_bytes = audio.download_sync(None)?;
         let (samples, sample_rate) = wav::read_wav(&wav_bytes)?;
         let (samples, sample_rate) = if sample_rate != TARGET_SAMPLE_RATE {
             (
