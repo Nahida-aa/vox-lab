@@ -2511,8 +2511,8 @@ dependencies = [
 
 [[package]]
 name = "gradio"
-version = "0.4.1"
-source = "git+https://github.com/Nahida-aa/gradio-rs?branch=fix%2Fgradio-6-info-label-i18n#859b78065da6ef3ae8efe416540dd278561d56d8"
+version = "0.4.2"
+source = "git+https://github.com/JacobLinCool/gradio-rs?tag=v0.4.2#4e1fff1c2903c79ca702a969b1acf726ddecd842"
 dependencies = [
  "anyhow",
  "bytes",
