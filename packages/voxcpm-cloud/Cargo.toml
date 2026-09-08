@@ -8,3 +8,6 @@ vox-core = { path = "../vox-core" }
 anyhow = "1"
 serde_json = "1"
 gradio = "0.4.1"
+
+[dev-dependencies]
+clap = { workspace = true }
