@@ -132,6 +132,11 @@
 - [x] Rust `cloud.rs` (VoxCPMCloud/Config/TtsResult) 移入 `voxcpm-cloud`
 - [x] Rust `wav.rs` 移入 `vox-core`；自研 `gradio_client.rs` 已删除，改用官方推荐的 `gradio` crate（支持 Gradio 4/5/6）
 - [x] 冒烟 CLI 移为 `examples/smoke.rs`（clap 派生参数），`main.rs` 删除
+- [x] Gradio 客户端曾尝试替换为 `gradio` crate —— **实测失败**: 6.10 的
+      `/gradio_api/info` 中 `parameters[].label` 是 i18n map（非 string）,
+      `Client::new_sync` 解析即失败。已回退自研客户端（对 6.10 实测可用）。
+      已报上游 issue: https://github.com/JacobLinCool/gradio-rs/issues/10
+      （含响应样例与修复建议; 上游修复后可用 `examples/verify_config.rs` 验证）
 - [ ] LocalDub 侧 `stages/tts/mod.rs` 的依赖切换 (见未决)
 - [ ] `packages/voxlab` 在 LocalDub 侧退役
 
