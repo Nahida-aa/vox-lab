@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gradio = { path = "../gradio" }
+gradio = { git = "https://github.com/Nahida-aa/gradio-rs", branch = "fix/gradio-6-info-label-i18n" }
 vox-core = { path = "../vox-core" }
 anyhow = "1"
 serde_json = "1"

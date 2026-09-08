@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/voice-cloning","packages/vox-core","packages/voxcpm-cloud","packages/gradio",
+members = ["packages/voice-cloning","packages/vox-core","packages/voxcpm-cloud",
     "submodule/voxcpm-rs",
     "submodule/voxcpm-rs/vendor/patched/burn-cubecl",
     "submodule/voxcpm-rs/vendor/patched/cubecl-spirv",
