@@ -6,3 +6,5 @@
 mod cloud;
 
 pub use cloud::{DEFAULT_API_URL, TARGET_SAMPLE_RATE, TtsResult, VoxCPMCloud, VoxCPMCloudConfig};
+// 消费方 (LocalDub tts) 常用 wav 工具, 一并 re-export 免去双依赖
+pub use vox_core::wav::{read_wav, write_wav};
