@@ -1,8 +1,8 @@
-//! vox-core — 通用音频基础件。
+//! vox-core — 通用音频/网络基础件。
 //!
-//! - [\`wav\`]: 极简 WAV 读写 + 重采样 (16/32-bit PCM, 零音频库依赖)
-//!
-//! Gradio 客户端改用官方推荐的 \`gradio\` crate, 由 \`voxcpm-cloud\` 直接依赖。
+//! - [`wav`]: 极简 WAV 读写 + 重采样 (16/32-bit PCM, 零音频库依赖)
+//! - [`gradio_client`]: 极简 Gradio 5 HTTP 客户端 (blocking,
+//!   `/gradio_api/call/{api}` 两段式 + SSE, 覆盖 LocalDub/voxlab 所需)
 
 pub mod wav;
 
