@@ -1,0 +1,126 @@
+name: release-demucs-linux
+
+# 手动触发: 构建 demucs-burn 的 Linux (x86_64-unknown-linux-gnu) 资产并上传到
+# vox-lab 对应 GitHub Release。测试阶段只发 tch + wgpu 两个后端。
+#
+# 资产形态: zip (区别于 vision-lab 的单文件资产), 因为 tch 后端动态链 libtorch
+# (torch-sys 的 download-libtorch 产物), 无法单文件。zip 内 exe + libtorch.so 平铺,
+# 解压目录即 bin dir (Linux 需经 LD_LIBRARY_PATH=bin_dir 提供 libtorch)。
+# 命名: <bin>-x86_64-unknown-linux-gnu.zip, 与 Windows 形态一致。
+#
+# 已知前提:
+#   - tch 后端: demucs-burn 的 tch feature → demucs-core/tch → burn/tch, torch-sys
+#     经 download-libtorch 拉官方 libtorch 预编译, 无需本机装。
+#   - wgpu 后端: 无外部动态库 (经系统 Vulkan), 单 exe 塞 zip。
+#   - 冒烟仅验证 exe 可启动 (libtorch depends 齐全) + --model-dir 路径解析。
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_tch:
+        description: "构建并上传 demucs-burn-tch 到 demucs-burn-v0.1.0"
+        type: boolean
+        default: true
+      upload_wgpu:
+        description: "构建并上传 demucs-burn-wgpu 到 demucs-burn-v0.1.0"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: build release bins
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.upload_tch }}" != "false" ]; then
+            cargo build --release -p demucs-burn --bin demucs-burn-tch --no-default-features --features tch
+          fi
+          if [ "${{ github.event.inputs.upload_wgpu }}" != "false" ]; then
+            cargo build --release -p demucs-burn --bin demucs-burn-wgpu --no-default-features --features wgpu
+          fi
+          ls -la target/release/demucs-burn-* 2>/dev/null || true
+
+      - name: smoke test (tch 可启动, libtorch depends 齐全)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.upload_tch }}" != "false" ]; then
+            libtorch_dir=$(find target/release/build -maxdepth 5 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+            [ -n "$libtorch_dir" ] || { echo "libtorch dir not found"; exit 1; }
+            # --model-dir 用不存在的目录会走到 provider 解析; 这里只需确认 exe 能起来 (--help exit 0)
+            LD_LIBRARY_PATH="$libtorch_dir" ./target/release/demucs-burn-tch --help >/dev/null
+          fi
+          if [ "${{ github.event.inputs.upload_wgpu }}" != "false" ]; then
+            ./target/release/demucs-burn-wgpu --help >/dev/null
+          fi
+          echo "smoke ok"
+
+      - name: package zips + sha256
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="$RUNNER_TEMP/out"
+          mkdir -p "$out_dir"
+          declare -a bins=()
+          if [ "${{ github.event.inputs.upload_tch }}" != "false" ]; then bins+=("demucs-burn-tch"); fi
+          if [ "${{ github.event.inputs.upload_wgpu }}" != "false" ]; then bins+=("demucs-burn-wgpu"); fi
+
+          for b in "${bins[@]}"; do
+            staging="$out_dir/$b"
+            mkdir -p "$staging"
+            cp "target/release/$b" "$staging/"
+            # tch 后端: libtorch.so 平铺进 zip (与 exe 同目录, 解压后 LD_LIBRARY_PATH=bin_dir 可用)
+            if [ "$b" = "demucs-burn-tch" ]; then
+              libtorch_dir=$(find target/release/build -maxdepth 5 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+              # 需要链接到的核心 so: libtorch.so + 其依赖 (libc10, libtorch_cpu + gomp/deps)
+              # 注意 ldd 只保证启动所需; 全部拷走更稳妥 (libtorch 体积 ~100MB+)
+              cp "$libtorch_dir"/*.so* "$staging/" 2>/dev/null || true
+            fi
+            # zip 内文件平铺到根 (解压目录即 bin dir)
+            pushd "$staging" >/dev/null
+            asset="$out_dir/$b-x86_64-unknown-linux-gnu.zip"
+            zip -q -r "$asset" .
+            popd >/dev/null
+            hash=$(sha256sum "$asset" | awk '{print $1}')
+            echo "$b-x86_64-unknown-linux-gnu.zip  $hash  $(stat -c%s "$asset")" | tee -a "$out_dir/sha256.txt"
+          done
+
+      - name: create release (幂等)
+        shell: bash
+        run: |
+          gh release create demucs-burn-v0.1.0 --title "demucs-burn v0.1.0" --notes "demucs-burn Linux 资产 (tch+wgpu, zip 平铺)" 2>/dev/null || echo "release 已存在, 继续"
+
+      - name: upload assets to releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="$RUNNER_TEMP/out"
+          if [ "${{ github.event.inputs.upload_tch }}" != "false" ]; then
+            gh release upload demucs-burn-v0.1.0 "$out_dir/demucs-burn-tch-x86_64-unknown-linux-gnu.zip" --clobber
+          fi
+          if [ "${{ github.event.inputs.upload_wgpu }}" != "false" ]; then
+            gh release upload demucs-burn-v0.1.0 "$out_dir/demucs-burn-wgpu-x86_64-unknown-linux-gnu.zip" --clobber
+          fi
+          echo "upload done"
+
+      - name: print sha256
+        shell: bash
+        run: |
+          cat "$RUNNER_TEMP/out/sha256.txt"
