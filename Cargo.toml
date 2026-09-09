@@ -4,7 +4,7 @@ members = ["packages/voice-cloning","packages/vox-core","packages/voxcpm-cloud",
     "packages/voxcpm-burn",
     "submodule/voxcpm-rs",
     "submodule/voxcpm-rs/vendor/patched/burn-cubecl",
-    "submodule/voxcpm-rs/vendor/patched/cubecl-spirv",
+    "submodule/voxcpm-rs/vendor/patched/cubecl-spirv", "packages/util",
 ]
 
 [workspace.dependencies]
