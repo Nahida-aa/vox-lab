@@ -6,6 +6,11 @@ name: release-whisper-linux
 # 背景: whisper.cpp 官方 Release 只发 CPU/cublas 构建, 无 Vulkan 构建, 故在
 # vox-lab 自建 CI 提前编译 LocalDub 需要的 whisper-vulkan。
 #
+# 版本策略: submodule/whisper.cpp 钉在与 LocalDub 相同的 commit (43d78af5, v1.9.1-44),
+# 保证解码行为与 LocalDub 参数调优完全一致。该版本 CLI 目标名为 `whisper-cli`
+# (LocalDub 调优的 `whisper-vulkan` 名字来自更早的 build), 发布时改名为
+# `whisper-vulkan` 以匹配 LocalDub 的 bin 路径解析 (config-rs whisper_vulkan_path)。
+#
 # 资产形态: zip (区别于 vision-lab 单文件资产), 因为 whisper-vulkan 动态链
 # libwhisper.so + libggml*.so (见 ldd), 无法单文件。zip 内 exe + .so 平铺,
 # 解压目录即 bin dir (运行时 LD_LIBRARY_PATH=bin_dir 提供 lib*.so)。
@@ -58,18 +63,20 @@ jobs:
         run: |
           set -euo pipefail
           cd submodule/whisper.cpp
+          git describe --tags --always
           cmake -B build -DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=ON -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release -j"$(nproc)"
-          ls -la build/bin/whisper-vulkan
+          ls -la build/bin/whisper-cli
 
       - name: smoke test (可启动 + 依赖齐全)
         shell: bash
         run: |
           set -euo pipefail
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/submodule/whisper.cpp/build/bin"
-          "$GITHUB_WORKSPACE/submodule/whisper.cpp/build/bin/whisper-vulkan" --help >/dev/null
+          # 本版本 CLI 目标名是 whisper-cli, 发布资产重命名为 whisper-vulkan
+          "$GITHUB_WORKSPACE/submodule/whisper.cpp/build/bin/whisper-cli" --help >/dev/null
           # 缺库告警: ldd 里 not found 即抛 (libvulkan.so.1 走系统)
-          missing=$(ldd build/bin/whisper-vulkan 2>/dev/null | grep "not found" || true)
+          missing=$(ldd build/bin/whisper-cli 2>/dev/null | grep "not found" || true)
           if [ -n "$missing" ]; then echo "missing libs: $missing"; exit 1; fi
           echo "smoke ok"
 
@@ -81,7 +88,8 @@ jobs:
           out_dir="$RUNNER_TEMP/out"
           staging="$out_dir/whisper-vulkan"
           mkdir -p "$staging"
-          cp "$whisper_dir/whisper-vulkan" "$staging/"
+          # 重命名 whisper-cli -> whisper-vulkan (LocalDub bin 路径解析用这个名字)
+          cp "$whisper_dir/whisper-cli" "$staging/whisper-vulkan"
           # 平铺 whisper/ggml/parakeet .so 环 (与 exe 同目录, LD_LIBRARY_PATH=bin_dir 可用)
           cp "$whisper_dir"/libwhisper.so* "$staging/" 2>/dev/null || true
           cp "$whisper_dir"/libggml*.so* "$staging/" 2>/dev/null || true
