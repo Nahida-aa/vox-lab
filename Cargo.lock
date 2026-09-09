@@ -7460,6 +7460,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "voxcpm-burn"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "burn",
+ "clap",
+ "env_logger",
+ "half",
+ "hound",
+ "pollster",
+ "voxcpm-rs",
+]
+
+[[package]]
 name = "voxcpm-cloud"
 version = "0.1.0"
 dependencies = [
