@@ -1,9 +1,11 @@
 [workspace]
 members = ["packages/voice-cloning","packages/vox-core","packages/voxcpm-cloud",
+    "packages/demucs-burn",
     "submodule/voxcpm-rs",
     "submodule/voxcpm-rs/vendor/patched/burn-cubecl",
     "submodule/voxcpm-rs/vendor/patched/cubecl-spirv",
 ]
 
 [workspace.dependencies]
-clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }

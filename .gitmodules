@@ -4,3 +4,6 @@
 [submodule "submodule/VoxCPM"]
 	path = submodule/VoxCPM
 	url = https://github.com/OpenBMB/VoxCPM.git
+[submodule "submodule/demucs-rs"]
+	path = submodule/demucs-rs
+	url = https://github.com/Nahida-aa/demucs-rs.git
