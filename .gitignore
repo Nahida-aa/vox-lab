@@ -27,6 +27,14 @@ venv/
 tmp/
 .DS_Store
 *.local.md
+e2e/ref/video_source.mp4
+
+# ── Benchmark 二进制产物 ──
+**/results/**/*.wav
+**/results/**/*.m4a
+**/results/**/*.jpg
+**/results/**/*.json
+**/results/**/*.log
 
 # ── 编辑器 / 系统 ──
 .idea/

@@ -1,0 +1,63 @@
+[2026-06-18T09:04:54] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:05:07] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (18749B)
+[2026-06-18T09:05:08] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (28446B, 1204 lines)
+[2026-06-18T09:05:15] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:05:15] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T09:06:16] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
+[2026-06-18T09:15:47] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:16:00] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (18749B)
+[2026-06-18T09:16:01] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (31135B, 1279 lines)
+[2026-06-18T09:17:50] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:18:04] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:18:18] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (18749B)
+[2026-06-18T09:18:18] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (33207B, 1354 lines)
+[2026-06-18T09:27:12] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:27:26] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (20364B)
+[2026-06-18T09:27:27] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (33228B, 1354 lines)
+[2026-06-18T09:44:48] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:45:02] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (20364B)
+[2026-06-18T09:45:03] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (35050B, 1429 lines)
+[2026-06-18T09:45:44] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:45:57] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (17279B)
+[2026-06-18T09:45:58] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (34916B, 1429 lines)
+[2026-06-18T09:46:37] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:46:51] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (18749B)
+[2026-06-18T09:46:52] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (34959B, 1429 lines)
+[2026-06-18T09:48:13] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:48:13] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T09:59:03] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T09:59:17] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (18602B)
+[2026-06-18T09:59:17] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (36760B, 1504 lines)
+[2026-06-18T10:16:09] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T10:16:23] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (18161B)
+[2026-06-18T10:16:23] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (36723B, 1504 lines)
+[2026-06-18T10:22:14] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T10:22:28] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (18895B)
+[2026-06-18T10:22:29] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (36689B, 1504 lines)
+[2026-06-18T10:25:07] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T10:25:07] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T10:26:07] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
+[2026-06-18T10:31:13] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T10:31:27] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/tmp/concat_list.txt (18895B)
+[2026-06-18T10:31:28] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json (36686B, 1504 lines)
+[2026-06-18T10:48:40] [merge_audio] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T10:48:40] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T10:49:42] [merge_audio] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
+[2026-06-18T10:58:05] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T10:58:05] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T10:59:04] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
+[2026-06-18T11:26:00] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T11:26:00] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T11:27:05] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
+[2026-06-18T11:28:26] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T11:28:26] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T11:29:26] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
+[2026-06-18T11:32:37] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T11:32:37] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T11:33:40] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
+[2026-06-18T11:53:54] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T11:53:54] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T11:54:59] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
+[2026-06-18T12:07:47] [merge_video] [File] read /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/timings.json
+[2026-06-18T12:07:47] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/metadata/subtitles.zh.srt (4303B)
+[2026-06-18T12:08:49] [merge_video] [File] write /home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/media/benchmark-split_dub_ntl.mp4
