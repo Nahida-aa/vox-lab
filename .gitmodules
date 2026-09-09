@@ -7,3 +7,6 @@
 [submodule "submodule/demucs-rs"]
 	path = submodule/demucs-rs
 	url = https://github.com/Nahida-aa/demucs-rs.git
+[submodule "submodule/whisper.cpp"]
+	path = submodule/whisper.cpp
+	url = git@github.com:ggml-org/whisper.cpp.git

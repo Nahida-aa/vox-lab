@@ -156,6 +156,10 @@
 - 量化 / 低精度后端
 - 集中式调度层（若多个 Runtime 需统一编排再考虑，当前不做）
 - 更多模型接入（其他 TTS、VC、声码器）
+- **Windows `whisper-vulkan` 构建**：`release-whisper-linux.yml` 已发布 Linux 资产
+  （`whisper-cpp-v0.1.0`）；Windows 版需新增 `release-whisper-windows.yml`
+  （Rust 版 whisper.cpp 用 MSVC/cmake 构建 Vulkan 后端，资产形态 `whisper-vulkan-x86_64-pc-windows-msvc.zip`
+  平铺 exe + dll，LocalDub `items.rs` 的 `WHISPER_VULKAN` spec 需补 windows 资产+sha256）。
 
 ## 决策记录
 - 框架实现叫 **Runtime**，计算后端叫 **Device**（复用 Burn 的 backend 概念）。

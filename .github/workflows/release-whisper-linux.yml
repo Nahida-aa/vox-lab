@@ -1,0 +1,111 @@
+name: release-whisper-linux
+
+# 手动触发: 构建 whisper.cpp Vulkan (ggml-vulkan backend) 的 Linux
+# (x86_64-unknown-linux-gnu) 资产并上传到 vox-lab 对应 GitHub Release。
+#
+# 背景: whisper.cpp 官方 Release 只发 CPU/cublas 构建, 无 Vulkan 构建, 故在
+# vox-lab 自建 CI 提前编译 LocalDub 需要的 whisper-vulkan。
+#
+# 资产形态: zip (区别于 vision-lab 单文件资产), 因为 whisper-vulkan 动态链
+# libwhisper.so + libggml*.so (见 ldd), 无法单文件。zip 内 exe + .so 平铺,
+# 解压目录即 bin dir (运行时 LD_LIBRARY_PATH=bin_dir 提供 lib*.so)。
+# 命名: <bin>-x86_64-unknown-linux-gnu.zip, 与 Windows 形态一致 (win 待后续)。
+#
+# 已知前提:
+#   - 构建需 libvulkan-dev (headers) + glslc (shader 编译), 见 whisper.cpp
+#     .devops/main-vulkan.Dockerfile。
+#   - 运行冒烟需 libvulkan1 (icd 加载器) + mesa-vulkan-drivers (软 Vulkan)。
+#   - GGML_NATIVE=OFF: 便携基线, 避免 bakes 本机 CPU 特化指令。
+#   - 冒烟仅验证 exe 可启动 (--help exit 0) + ldd 依赖齐全; 真机 ASR 留给 LocalDub。
+#
+# 状态: Linux 已发布; Windows whisper-vulkan 构建列入 ROADMAP/todo (见文件头部 TODO)。
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_whisper:
+        description: "构建并上传 whisper-vulkan 到 whisper-cpp-v0.1.0"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: install vulkan build deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          # libvulkan-dev: ggml-vulkan backend headers; glslc: Vulkan shader 编译
+          # libvulkan1 + mesa-vulkan-drivers: 冒烟用的运行时 icd
+          sudo apt-get install -y build-essential cmake libvulkan-dev glslc libvulkan1 mesa-vulkan-drivers
+
+      - name: build whisper-vulkan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd submodule/whisper.cpp
+          cmake -B build -DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release -j"$(nproc)"
+          ls -la build/bin/whisper-vulkan
+
+      - name: smoke test (可启动 + 依赖齐全)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/submodule/whisper.cpp/build/bin"
+          "$GITHUB_WORKSPACE/submodule/whisper.cpp/build/bin/whisper-vulkan" --help >/dev/null
+          # 缺库告警: ldd 里 not found 即抛 (libvulkan.so.1 走系统)
+          missing=$(ldd build/bin/whisper-vulkan 2>/dev/null | grep "not found" || true)
+          if [ -n "$missing" ]; then echo "missing libs: $missing"; exit 1; fi
+          echo "smoke ok"
+
+      - name: package zip + sha256
+        shell: bash
+        run: |
+          set -euo pipefail
+          whisper_dir="$GITHUB_WORKSPACE/submodule/whisper.cpp/build/bin"
+          out_dir="$RUNNER_TEMP/out"
+          staging="$out_dir/whisper-vulkan"
+          mkdir -p "$staging"
+          cp "$whisper_dir/whisper-vulkan" "$staging/"
+          # 平铺 whisper/ggml/parakeet .so 环 (与 exe 同目录, LD_LIBRARY_PATH=bin_dir 可用)
+          cp "$whisper_dir"/libwhisper.so* "$staging/" 2>/dev/null || true
+          cp "$whisper_dir"/libggml*.so* "$staging/" 2>/dev/null || true
+          cp "$whisper_dir"/libparakeet.so* "$staging/" 2>/dev/null || true
+          pushd "$staging" >/dev/null
+          asset="$out_dir/whisper-vulkan-x86_64-unknown-linux-gnu.zip"
+          zip -q -r "$asset" .
+          popd >/dev/null
+          hash=$(sha256sum "$asset" | awk '{print $1}')
+          echo "whisper-vulkan-x86_64-unknown-linux-gnu.zip  $hash  $(stat -c%s "$asset")" | tee "$out_dir/sha256.txt"
+
+      - name: create release (幂等)
+        shell: bash
+        run: |
+          gh release create whisper-cpp-v0.1.0 --title "whisper.cpp Vulkan v0.1.0" --notes "whisper-vulkan Linux 资产 (GGML_VULKAN, zip 平铺 .so)" 2>/dev/null || echo "release 已存在, 继续"
+
+      - name: upload asset to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload whisper-cpp-v0.1.0 "$RUNNER_TEMP/out/whisper-vulkan-x86_64-unknown-linux-gnu.zip" --clobber
+          echo "upload done"
+
+      - name: print sha256
+        shell: bash
+        run: |
+          cat "$RUNNER_TEMP/out/sha256.txt"
