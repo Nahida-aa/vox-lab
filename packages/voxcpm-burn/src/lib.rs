@@ -47,7 +47,9 @@ pub struct Cli {
 /// 主流程。stdout 约定（基准脚本依赖，勿改）：`Benchmark-Load-Time` / `Benchmark-Warmup-Time` / `Benchmark-Gen-Time`。
 pub fn run<B: Backend>(cli: Cli, device: B::Device) -> Result<()> {
     let model_dir = if cli.model_dir.is_empty() {
-        config_rs::path::models::voxcpm_model_dir()
+        // data/models/voxcpm2 — 与 LocalDub config_rs::path::models::voxcpm_model_dir() 对齐
+        let repo_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        repo_root.join("data").join("models").join("voxcpm2")
     } else {
         PathBuf::from(&cli.model_dir)
     };

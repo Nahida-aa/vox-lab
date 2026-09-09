@@ -31,7 +31,6 @@ vulkan = ["voxcpm-rs/vulkan"]
 tch = ["burn/tch"]
 
 [dependencies]
-config-rs.workspace = true
 voxcpm-rs.workspace = true
 burn = { version = "0.20.1", default-features = false, features = ["std"] }
 clap.workspace = true
