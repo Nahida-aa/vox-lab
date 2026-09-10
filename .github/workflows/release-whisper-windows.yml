@@ -9,8 +9,9 @@ name: release-whisper-windows
 #
 # 构建依赖:
 #   - Vulkan SDK for Windows (glslc 编译 shader + vulkan headers), 经 LunarG 官方
-#     安装器静默装到 C:\VulkanSDK (NSIS /S)。现成 GitHub 内置 action 且社区已验证
-#     (llama.cpp/whisper.cpp 的 Windows Vulkan CI 走同一条路)。
+#     安装器静默装到 C:\VulkanSDK\<ver>。注意: 新版 installer 不再支持 `/S`, 需
+#     传 `--accept-licenses --default-answer --confirm-command install` (llama.cpp /
+#     nvpro-samples 的 Windows Vulkan CI 都这么装)。
 #   - MSVC + CMake 由 windows-latest runner 自带。
 #   - 冒烟仅验证 exe 可启动 (--help exit 0): runner 无 GPU, 不做真机推理。
 
@@ -22,6 +23,8 @@ permissions:
 
 env:
   GH_TOKEN: ${{ github.token }}
+  # 钉版本 (与 llama.cpp 官方 Windows Vulkan CI 相同): ggml 1.4.x 均兼容, pin 保证可复现。
+  VULKAN_VERSION: 1.4.357.0
 
 jobs:
   build:
@@ -36,13 +39,19 @@ jobs:
       - name: install Vulkan SDK
         shell: pwsh
         run: |
-          $url = "https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe"
-          $installer = Join-Path $env:TEMP "vulkan_sdk.exe"
-          Invoke-WebRequest $url -OutFile $installer
-          Start-Process -FilePath $installer -ArgumentList "/S" -Wait
-          $sdk = Get-ChildItem "C:\VulkanSDK" -Directory | Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $sdk) { throw "Vulkan SDK 安装失败" }
-          "VULKAN_SDK=$($sdk.FullName)" | Out-File $env:GITHUB_ENV -Append
+          $ver = "$env:VULKAN_VERSION"
+          $url = "https://sdk.lunarg.com/sdk/download/$ver/windows/vulkansdk-windows-X64-$ver.exe"
+          $installer = Join-Path $env:TEMP "vulkansdk.exe"
+          Write-Host "Downloading $url"
+          curl.exe -sSL -o $installer $url
+          if (-not (Test-Path $installer)) { throw "Vulkan SDK download failed" }
+          & $installer --accept-licenses --default-answer --confirm-command install
+          if ($LASTEXITCODE -ne 0) { throw "Vulkan SDK install failed: $LASTEXITCODE" }
+          $sdk = "C:\VulkanSDK\$ver"
+          if (-not (Test-Path "$sdk\Bin\glslc.exe")) { throw "glslc not found: $sdk\Bin" }
+          "VULKAN_SDK=$sdk" | Out-File $env:GITHUB_ENV -Append
+          Add-Content $env:GITHUB_PATH "$sdk\Bin"
+          Write-Host "Vulkan SDK installed at $sdk"
 
       - name: build whisper-vulkan
         shell: bash
@@ -52,8 +61,8 @@ jobs:
           cd submodule/whisper.cpp
           git describe --tags --always
           cmake -B build -DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=ON -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 17 2022" -A x64
-          cmake --build build --config Release --parallel 2>/dev/null || cmake --build build --config Release --parallel
-          ls -la build/bin/Release/ build/bin/ 2>/dev/null || true
+          cmake --build build --config Release --parallel
+          find build -name "whisper-cli.exe" -exec ls -la {} \;
 
       - name: smoke test (可启动)
         shell: bash
