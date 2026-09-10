@@ -54,25 +54,26 @@ jobs:
           Write-Host "Vulkan SDK installed at $sdk"
 
       - name: build whisper-vulkan
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          export PATH="$VULKAN_SDK/Bin:$PATH"
-          cd submodule/whisper.cpp
+          $env:PATH = "$env:VULKAN_SDK\Bin;$env:PATH"
+          cd submodule\whisper.cpp
           git describe --tags --always
-          cmake -B build -DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=ON -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 17 2022" -A x64
+          # 不显式指定 -G: pwsh 里 cmake 默认自动探测 VS 实例 (显式 "Visual Studio 17 2022"
+          # 在 Git Bash 下会报 "could not find any instance of Visual Studio")
+          cmake -B build -DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=ON -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release --parallel
-          find build -name "whisper-cli.exe" -exec ls -la {} \;
+          Get-ChildItem -Recurse build -Filter whisper-cli.exe | ForEach-Object { Write-Host $_.FullName }
 
       - name: smoke test (可启动)
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          export PATH="$VULKAN_SDK/Bin:$PATH"
-          bin=$(find "submodule/whisper.cpp/build" -name "whisper-cli.exe" | head -1)
-          [ -n "$bin" ] || { echo "whisper-cli.exe not found"; exit 1; }
-          "$bin" --help >/dev/null
-          echo "smoke ok: $bin"
+          $env:PATH = "$env:VULKAN_SDK\Bin;$env:PATH"
+          $bin = Get-ChildItem -Recurse "submodule\whisper.cpp\build" -Filter whisper-cli.exe | Select-Object -First 1
+          if (-not $bin) { throw "whisper-cli.exe not found" }
+          & $bin.FullName --help > $null
+          if ($LASTEXITCODE -ne 0) { throw "smoke failed: $LASTEXITCODE" }
+          Write-Host "smoke ok: $($bin.FullName)"
 
       - name: package zip + sha256
         shell: bash
