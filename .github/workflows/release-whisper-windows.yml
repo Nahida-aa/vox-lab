@@ -79,14 +79,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          whisper_dir=$(find "submodule/whisper.cpp/build" -type d -name Release | head -1)
-          [ -n "$whisper_dir" ] || whisper_dir="submodule/whisper.cpp/build/bin"
+          # 按 whisper-cli.exe 定位发布目录 (find -type d -name Release 会命中 ALL_BUILD.dir/Release 这类中间目录)
+          exe_path=$(find "submodule/whisper.cpp/build" -name "whisper-cli.exe" | head -1)
+          [ -n "$exe_path" ] || { echo "whisper-cli.exe not found"; exit 1; }
+          whisper_dir=$(dirname "$exe_path")
           out_dir="$RUNNER_TEMP/out"
           staging="$out_dir/whisper-vulkan"
           mkdir -p "$staging"
           # whisper-cli -> whisper-vulkan (LocalDub bin 路径解析用这个名字)
           cp "$whisper_dir/whisper-cli.exe" "$staging/whisper-vulkan.exe"
-          # 平铺 whisper/ggml/parakeet dll 环 (与 exe 同目录)
+          # 平铺 whisper/ggml/parakeet dll 环 (与 exe 同目录, 若为静态链接则无 dll)
           cp "$whisper_dir"/*.dll "$staging/" 2>/dev/null || true
           # MSVC runtime dll (目标机可能缺): 从 System32 拷入平铺
           for dll in msvcp140.dll vcruntime140.dll vcruntime140_1.dll concrt140.dll; do
