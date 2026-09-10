@@ -1,0 +1,116 @@
+name: release-demucs-windows
+
+# 手动触发: 构建 demucs-burn 的 Windows (x86_64-pc-windows-msvc) 资产并上传到
+# vox-lab 对应 GitHub Release。与 release-demucs-linux.yml 保持同一份逻辑, 只发
+# tch + wgpu 两个后端。
+#
+# 资产形态: zip, tch 后端动态链 libtorch (torch-sys 的 download-libtorch 产物),
+# zip 内 exe + libtorch dll 平铺 (解压目录即 bin dir)。wgpu 后端单 exe。
+# 命名: <bin>-x86_64-pc-windows-msvc.zip (与 linux 形态一致, 仅 target-triple 不同)。
+#
+# 已知前提:
+#   - tch 后端: torch-sys 经 download-libtorch 拉官方 Windows libtorch (dll), 无需本机装。
+#   - wgpu 后端: 单 exe (Windows 走 DX12 backend), 无外部动态库。
+#   - 额外打包 MSVC runtime dll (msvcp140 等), 目标机可能缺失。
+#   - 冒烟仅验证 exe 可启动 (--help exit 0): runner 无 GPU。
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_tch:
+        description: "构建并上传 demucs-burn-tch 到 demucs-burn-v0.1.0"
+        type: boolean
+        default: true
+      upload_wgpu:
+        description: "构建并上传 demucs-burn-wgpu 到 demucs-burn-v0.1.0"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: build release bins
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.upload_tch }}" != "false" ]; then
+            cargo build --release -p demucs-burn --bin demucs-burn-tch --no-default-features --features tch
+          fi
+          if [ "${{ github.event.inputs.upload_wgpu }}" != "false" ]; then
+            cargo build --release -p demucs-burn --bin demucs-burn-wgpu --no-default-features --features wgpu
+          fi
+          ls -la target/release/demucs-burn-*.exe 2>/dev/null || true
+
+      - name: smoke test (tch 可启动, libtorch depends 齐全)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.upload_tch }}" != "false" ]; then
+            libtorch_dir=$(find target/release/build -maxdepth 6 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+            [ -n "$libtorch_dir" ] || { echo "libtorch dir not found"; exit 1; }
+            PATH="$libtorch_dir:$PATH" ./target/release/demucs-burn-tch.exe --help >/dev/null
+          fi
+          if [ "${{ github.event.inputs.upload_wgpu }}" != "false" ]; then
+            ./target/release/demucs-burn-wgpu.exe --help >/dev/null
+          fi
+          echo "smoke ok"
+
+      - name: package zips + sha256
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="$RUNNER_TEMP/out"
+          mkdir -p "$out_dir"
+          declare -a bins=()
+          if [ "${{ github.event.inputs.upload_tch }}" != "false" ]; then bins+=("demucs-burn-tch"); fi
+          if [ "${{ github.event.inputs.upload_wgpu }}" != "false" ]; then bins+=("demucs-burn-wgpu"); fi
+
+          for b in "${bins[@]}"; do
+            staging="$out_dir/$b"
+            mkdir -p "$staging"
+            cp "target/release/$b.exe" "$staging/"
+            # tch 后端: libtorch dll 平铺进 zip (与 exe 同目录) + MSVC runtime dll
+            if [ "$b" = "demucs-burn-tch" ]; then
+              libtorch_dir=$(find target/release/build -maxdepth 6 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+              cp "$libtorch_dir"/*.dll "$staging/" 2>/dev/null || true
+              for dll in msvcp140.dll vcruntime140.dll vcruntime140_1.dll concrt140.dll; do
+                cp "C:/Windows/System32/$dll" "$staging/" 2>/dev/null || true
+              done
+            fi
+            pushd "$staging" >/dev/null
+            asset="$out_dir/$b-x86_64-pc-windows-msvc.zip"
+            powershell -Command "Compress-Archive -Path * -DestinationPath '$asset'" 2>/dev/null || powershell -Command "Compress-Archive -LiteralPath (Get-ChildItem).FullName -DestinationPath '$asset'"
+            popd >/dev/null
+            hash=$(powershell -Command "(Get-FileHash '$asset' -Algorithm SHA256).Hash.ToLower()")
+            echo "$b-x86_64-pc-windows-msvc.zip  $hash  $(stat -c%s "$asset")" | tee -a "$out_dir/sha256.txt"
+          done
+
+      - name: upload assets to releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="$RUNNER_TEMP/out"
+          gh release create demucs-burn-v0.1.0 --title "demucs-burn v0.1.0" --notes "demucs-burn Linux + Windows 资产 (tch+wgpu, zip 平铺)" 2>/dev/null || echo "release 已存在, 继续"
+          if [ "${{ github.event.inputs.upload_tch }}" != "false" ]; then
+            gh release upload demucs-burn-v0.1.0 "$out_dir/demucs-burn-tch-x86_64-pc-windows-msvc.zip" --clobber
+          fi
+          if [ "${{ github.event.inputs.upload_wgpu }}" != "false" ]; then
+            gh release upload demucs-burn-v0.1.0 "$out_dir/demucs-burn-wgpu-x86_64-pc-windows-msvc.zip" --clobber
+          fi
+          cat "$out_dir/sha256.txt"

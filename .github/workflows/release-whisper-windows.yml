@@ -1,0 +1,98 @@
+name: release-whisper-windows
+
+# 手动触发: 构建 whisper.cpp Vulkan (ggml-vulkan backend) 的 Windows
+# (x86_64-pc-windows-msvc) 资产并上传到 vox-lab 对应 GitHub Release。
+#
+# 与 release-whisper-linux.yml 唯一区别是平台/依赖 (MSVC + Vulkan SDK for Windows)。
+# 版本策略/资产形态保持一致: whisper-cli 改名 whisper-vulkan, zip 内 exe + dll 平铺,
+# 资产名 <bin>-x86_64-pc-windows-msvc.zip (zipalign 前的形态与 linux 一致)。
+#
+# 构建依赖:
+#   - Vulkan SDK for Windows (glslc 编译 shader + vulkan headers), 经 LunarG 官方
+#     安装器静默装到 C:\VulkanSDK (NSIS /S)。现成 GitHub 内置 action 且社区已验证
+#     (llama.cpp/whisper.cpp 的 Windows Vulkan CI 走同一条路)。
+#   - MSVC + CMake 由 windows-latest runner 自带。
+#   - 冒烟仅验证 exe 可启动 (--help exit 0): runner 无 GPU, 不做真机推理。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: install Vulkan SDK
+        shell: pwsh
+        run: |
+          $url = "https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe"
+          $installer = Join-Path $env:TEMP "vulkan_sdk.exe"
+          Invoke-WebRequest $url -OutFile $installer
+          Start-Process -FilePath $installer -ArgumentList "/S" -Wait
+          $sdk = Get-ChildItem "C:\VulkanSDK" -Directory | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $sdk) { throw "Vulkan SDK 安装失败" }
+          "VULKAN_SDK=$($sdk.FullName)" | Out-File $env:GITHUB_ENV -Append
+
+      - name: build whisper-vulkan
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$VULKAN_SDK/Bin:$PATH"
+          cd submodule/whisper.cpp
+          git describe --tags --always
+          cmake -B build -DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=ON -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 17 2022" -A x64
+          cmake --build build --config Release --parallel 2>/dev/null || cmake --build build --config Release --parallel
+          ls -la build/bin/Release/ build/bin/ 2>/dev/null || true
+
+      - name: smoke test (可启动)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$VULKAN_SDK/Bin:$PATH"
+          bin=$(find "submodule/whisper.cpp/build" -name "whisper-cli.exe" | head -1)
+          [ -n "$bin" ] || { echo "whisper-cli.exe not found"; exit 1; }
+          "$bin" --help >/dev/null
+          echo "smoke ok: $bin"
+
+      - name: package zip + sha256
+        shell: bash
+        run: |
+          set -euo pipefail
+          whisper_dir=$(find "submodule/whisper.cpp/build" -type d -name Release | head -1)
+          [ -n "$whisper_dir" ] || whisper_dir="submodule/whisper.cpp/build/bin"
+          out_dir="$RUNNER_TEMP/out"
+          staging="$out_dir/whisper-vulkan"
+          mkdir -p "$staging"
+          # whisper-cli -> whisper-vulkan (LocalDub bin 路径解析用这个名字)
+          cp "$whisper_dir/whisper-cli.exe" "$staging/whisper-vulkan.exe"
+          # 平铺 whisper/ggml/parakeet dll 环 (与 exe 同目录)
+          cp "$whisper_dir"/*.dll "$staging/" 2>/dev/null || true
+          # MSVC runtime dll (目标机可能缺): 从 System32 拷入平铺
+          for dll in msvcp140.dll vcruntime140.dll vcruntime140_1.dll concrt140.dll; do
+            cp "C:/Windows/System32/$dll" "$staging/" 2>/dev/null || true
+          done
+          pushd "$staging" >/dev/null
+          asset="$out_dir/whisper-vulkan-x86_64-pc-windows-msvc.zip"
+          powershell -Command "Compress-Archive -Path * -DestinationPath '$asset'" 2>/dev/null || powershell -Command "Compress-Archive -LiteralPath (Get-ChildItem).FullName -DestinationPath '$asset'"
+          popd >/dev/null
+          hash=$(powershell -Command "(Get-FileHash '$asset' -Algorithm SHA256).Hash.ToLower()")
+          echo "whisper-vulkan-x86_64-pc-windows-msvc.zip  $hash  $(stat -c%s "$asset")" | tee "$out_dir/sha256.txt"
+
+      - name: upload asset to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create whisper-cpp-v0.1.0 --title "whisper.cpp Vulkan v0.1.0" --notes "whisper-vulkan Linux + Windows 资产 (GGML_VULKAN, zip 平铺)" 2>/dev/null || echo "release 已存在, 继续"
+          gh release upload whisper-cpp-v0.1.0 "$RUNNER_TEMP/out/whisper-vulkan-x86_64-pc-windows-msvc.zip" --clobber
+          cat "$RUNNER_TEMP/out/sha256.txt"
