@@ -155,4 +155,4 @@ triggers a code path that results in a bad memory access.
 - `backend/app/adapters/whisper_asr.py:_load_model()` — ROCm CPU fallback (for FastAPI backend)
 - `packages/cli/scripts/asr/run.py` — **CLI ASR** using faster-whisper (CTranslate2 ROCm),
   GPU float16 → CPU int8 fallback with retry. Primary ASR engine for the CLI pipeline.
-- `packages/cli/src/feat/tasks/pipeline-runner.ts` — `stageAsr` calls `run.py`, retries on signal kill
+- `packages/cli/src/feat/tasks/pipeline-runner.ts` — `stepAsr` calls `run.py`, retries on signal kill

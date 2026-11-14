@@ -111,7 +111,7 @@ impl ForwardListener for BenchListener {
     }
 }
 
-/// 主流程。stdout 约定（separate stage 依赖，勿改）：进度 `(xx%)`、基准行 `Benchmark-*`。
+/// 主流程。stdout 约定（separate step 依赖，勿改）：进度 `(xx%)`、基准行 `Benchmark-*`。
 pub fn run<B: Backend>(cli: Cli, device: B::Device) -> Result<()> {
     let info = resolve_model_info(&cli.model)?;
     let opts = model_options(info);

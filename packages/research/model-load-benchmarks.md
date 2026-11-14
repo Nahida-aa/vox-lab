@@ -4,11 +4,11 @@
 **Hardware**: AMD Radeon 780M (RDNA 3, gfx1103), 27GB RAM + 27GB zram swap, ROCm 7.2.3
 **Python**: 3.12 (`.venv/bin/python`), PyTorch 2.12.0+rocm7.2
 **Test video**: GitHub asset (~10s, source: `bd02936f-cf3c-4e4b-85b5-0410d38f69f5`)
-**Pipeline**: dub mode, 9 stages, all models on CPU unless noted
+**Pipeline**: dub mode, 9 steps, all models on CPU unless noted
 
 ## Load Times
 
-Measured from `task_stages.started_at` / `completed_at` in SQLite.
+Measured from `task_steps.started_at` / `completed_at` in SQLite.
 
 | Model | File Size | Load Time | Inference Time | Total | Runtime | Device |
 |-------|-----------|-----------|----------------|-------|---------|--------|
@@ -17,7 +17,7 @@ Measured from `task_stages.started_at` / `completed_at` in SQLite.
 | Whisper (openai-whisper) | ~3GB | ~15-30s | ~30s+ | N/A | PyTorch | CPU/GPU |
 | VoxCPM2 (1.3B) | ~4.7GB | ~35s | ~462s (7 clips) | 497s | PyTorch | CPU |
 
-Load time is the delta between stage start and first progress/complete message, excluding inference.
+Load time is the delta between step start and first progress/complete message, excluding inference.
 
 ### Notes
 
@@ -33,7 +33,7 @@ All measurements from kernel OOM reports + `free -h`.
 |--------------|----------|--------|
 | Demucs (CPU) + VoxCPM (CPU) — torch server | ~5.5GB | ✅ Works |
 | Demucs (CPU) + Whisper PyTorch (CPU) + VoxCPM (CPU) — torch server | ~9.5GB | ❌ OOM killed |
-| Demucs (CPU) + VoxCPM (CPU) — standalone subprocess per stage | ~4-5GB | ✅ Works |
+| Demucs (CPU) + VoxCPM (CPU) — standalone subprocess per step | ~4-5GB | ✅ Works |
 | Any single model standalone | ~2-5GB | ✅ Works |
 
 ### OOM Boundary
@@ -76,7 +76,7 @@ If all three models must be CPU, use standalone subprocesses (torch server not s
 ```
 7 clips generated in 462.3s
 Average: 66s per clip (~10s audio per clip → RTF ~6.6)
-Total TTS stage: 497s (35s load + 462s generate + overhead)
+Total TTS step: 497s (35s load + 462s generate + overhead)
 ```
 
 RTF is in the expected range for CPU VoxCPM (AGENTS.md: RTF ~7.4 for ONNX CPU).

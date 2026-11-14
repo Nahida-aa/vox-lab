@@ -1,5 +1,5 @@
 import { TaskCtx, writeCtx } from "@repo/core/context/context";
-import { stageSplitAudio } from "@repo/core/stages/06_split_audio/split_audio";
+import { stepSplitAudio } from "@repo/core/steps/06_split_audio/split_audio";
 import { ensureDir } from "@repo/core/utils/fileOps";
 import { join, resolve } from "node:path";
 import { existsSync } from "node:fs";
@@ -27,13 +27,13 @@ const ctx = {
     status: "running",
     task_dir: resultDir,
     created_at: new Date().toISOString(),
-    current_stage: "split_audio",
+    current_step: "split_audio",
   },
   pipeline: "dub",
   asr_language: "zh",
   target_language: "zh",
   input: {
-    stages: {
+    steps: {
       translate: { enabled: false },
       split_audio: { vadAlign: false, vocalsFilePath: audioSource, sourceFilePath: audioSource },
     },
@@ -42,6 +42,6 @@ const ctx = {
 writeCtx(ctx);
 ensureDir(join(resultDir, "segments", "vocals"));
 
-await stageSplitAudio(ctx);
+await stepSplitAudio(ctx);
 
 console.log(`Segments: ${resultDir}/segments/vocals/`);

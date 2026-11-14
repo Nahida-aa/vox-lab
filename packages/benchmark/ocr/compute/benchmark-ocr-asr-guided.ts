@@ -9,7 +9,7 @@ import {
   FrameResult,
   mergeFrames,
   dedupOverlap,
-} from "@repo/core/stages/ocr/ocrMerge";
+} from "@repo/core/steps/ocr/ocrMerge";
 import { findRapidOcrModelsDir } from "@repo/subtitle-ocr/utils";
 
 const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..");

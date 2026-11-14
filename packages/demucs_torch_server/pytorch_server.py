@@ -6,10 +6,10 @@ Endpoints:
   GET  /api/events                 → SSE stream: health (3s) + log (on change)
   GET  /api/health                 → server status and model states
   GET  /api/logs                   → server log lines (text/plain lines)
-  POST /api/run/{stage}            → execute a stage, returns SSE stream
+  POST /api/run/{step}            → execute a step, returns SSE stream
   POST /api/shutdown               → graceful shutdown
 
-SSE events from /api/run/{stage}:
+SSE events from /api/run/{step}:
   event: progress
   data: {"current":50,"total":100}
 
@@ -152,8 +152,8 @@ def _emit_to_queue(queue: asyncio.Queue, obj: dict) -> None:
     queue.put_nowait({"event": event_type, "data": data})
 
 
-async def _run_stage_events(stage: str, task_id: str, params: dict):
-    """Async generator yielding SSE events for a stage run."""
+async def _run_step_events(step: str, task_id: str, params: dict):
+    """Async generator yielding SSE events for a step run."""
     queue: asyncio.Queue = asyncio.Queue()
     last_log_count = _log_buffer.write_count
 
@@ -167,23 +167,23 @@ async def _run_stage_events(stage: str, task_id: str, params: dict):
     def worker() -> None:
         try:
             dev = params.get("device", "cpu")
-            if stage == "asr":
+            if step == "asr":
                 _models["asr"] = {"status": "loading", "device": dev}
                 output = handle_asr(params)
                 _models["asr"] = {"status": "ready", "device": dev}
                 emit({"type": "complete", "output": output})
-            elif stage == "separate":
+            elif step == "separate":
                 _models["separate"] = {"status": "loading", "device": dev}
                 output = handle_separate(params, task_id, emit=emit)
                 _models["separate"] = {"status": "ready", "device": dev}
                 emit({"type": "complete", "output": output})
             else:
-                emit({"type": "error", "message": f"Unknown stage: {stage}"})
+                emit({"type": "error", "message": f"Unknown step: {step}"})
         except Exception:
             traceback.print_exc(file=sys.stderr)
             sys.stderr.flush()
-            if stage in _models:
-                _models[stage] = {"status": "error", "device": _models[stage].get("device", "")}
+            if step in _models:
+                _models[step] = {"status": "error", "device": _models[step].get("device", "")}
             emit({"type": "error", "message": traceback.format_exc()})
 
     loop = asyncio.get_event_loop()
@@ -229,12 +229,12 @@ async def health():
     }
 
 
-@app.post("/api/run/{stage}")
-async def run_stage(stage: str, body: dict):
+@app.post("/api/run/{step}")
+async def run_step(step: str, body: dict):
     task_id = body.get("task_id", "")
     params = body.get("params", {})
     return StreamingResponse(
-        _run_stage_events(stage, task_id, params),
+        _run_step_events(step, task_id, params),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
