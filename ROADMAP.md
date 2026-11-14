@@ -1,8 +1,17 @@
 # 路线图 (ROADMAP)
 
-> 方向：**去中心化**——每个 Runtime（burn / pytorch / cloud）自包含，
-> 能独立调用、独立起服务器；暂不做统一调度层，用 `RuntimeConfig` 承载选择。
-> 任务进度以 task list 为准。
+> 方向：**去中心化**——不做统一调度层，各实现可独立调用、互不编排。
+> 立项时设想的「每个 Runtime 独立起服务器 + `RuntimeConfig` 承载选择」未落地：
+> 实际 Rust 侧是「库 + 按 feature 分后端的 CLI 二进制」，只有 Python 侧起 HTTP 服务；
+> device 在编译期选定。任务进度以 task list 为准。
+
+> **阅读提示**：下方 `M0–M7` 是立项时以「voxcpm2 多后端推理」为范围画的阶段划分，
+> 保留作规划记录，实际并未逐项按原命名推进。仓库现已扩展为 ASR / 音源分离 /
+> TTS 的语音全链路工作区（7 个子模块、`packages/` 下 Rust + Python + benchmark +
+> research 多组、Linux/Windows 预构建资产发布），目录现状见
+> [README.md「仓库布局（现状）」](./README.md#仓库布局现状)。
+> 当前真正推进的主线是下面的「**移植 — 从 LocalDub/voxlab 迁入**」章节、
+> 「未来候选」中的 Windows 发布（已完成），以及 `git log` 中的迁移与 CI 提交。
 
 ## 术语
 - **Runtime（运行时）**：一套推理实现（burn / pytorch / cloud）。
@@ -12,6 +21,12 @@
   替代早期设想的「调度中心」。
 
 ## 阶段 M0 — 骨架 + HTTP 契约
+
+> ⛔ **未实现（历史规划）**：`shared-proto` / OpenAI `/v1/audio/speech` 契约、
+> 「本地 OpenAI + 云端 Gradio 两套并存」均未落地。实际只有 Gradio `/generate`
+> 一套契约，见 README「架构总览」与「HTTP 契约」。`packages/config` 亦未建立，
+> 配置模板以根目录 `settings.example.json` / `.env.example` 落地。
+
 **目标**：定好目录、术语、`shared-proto`（各 Runtime 共享的请求/响应类型）。
 
 - Cargo workspace 初始化（packages/ 下各 crate）
@@ -37,6 +52,10 @@
 **完成标准**：`shared-proto` 编译通过（本地 OpenAI 契约）；云端 Gradio 契约文档化并可由 runtime-cloud 复用；`config` 加载器能从默认+settings+env 正确合并。
 
 ## 阶段 M1 — burn 运行时：独立调用
+
+> ⛔ **命名未采用（历史规划）**：`runtime-burn` / `BurnRuntime` 未建立；
+> 对应能力落在 `packages/voxcpm-burn`（Rust 库），`submodule/voxcpm-rs` 为 workspace 成员。
+
 **目标**：把 `voxcpm-rs` 包装成可直接调用的 burn 运行时。
 
 - `runtime-burn` crate，依赖 `submodule/voxcpm-rs`
@@ -49,6 +68,11 @@
 **完成标准**：`cargo run` 用 cpu/vulkan 各跑通一次推理。
 
 ## 阶段 M2 — burn 运行时：独立 HTTP 服务器
+
+> ⛔ **未实现（历史规划）**：Rust 侧没有 axum HTTP 服务器，`/v1/infer` 等端点不存在。
+> 实际起服务器的是 Python 侧 `packages/voxcpm_torch_server`（FastAPI + Gradio，
+> 复刻云端 `/generate` 签名），另有 `/status` `/load-model` `/unload-model` + mDNS。
+
 **目标**：burn 运行时自己起一个 HTTP 服务，契约对齐云端。
 
 - `runtime-burn` 内置 axum 服务器（或独立 bin）
@@ -59,6 +83,11 @@
 **完成标准**：`curl` 调本地 burn 服务器完成推理，格式与云端一致。
 
 ## 阶段 M3 — TS 客户端
+
+> ⛔ **前提不成立（历史规划）**：`ts-client` 与「本地 OpenAI / 云端 Gradio 两套适配层切换」
+> 未实现。实际 `packages/voxcpm-cloud` 用 `@gradio/client` 按同一套 `/generate` 契约
+> 打本地或云端，`--target local|cloud` 仅换 endpoint，无需契约转换。
+
 **目标**：TS 侧统一访问本地（OpenAI 契约）与云端（Gradio 契约）。
 
 - `ts-client`：统一 `Client`，内部按目标选择契约适配层
@@ -71,6 +100,10 @@
 **完成标准**：同一段 TS 代码，通过切换 `Client` 适配层在本地 burn / 云端间工作（非仅改 URL）。
 
 ## 阶段 M4 — MVP 软件（CLI）
+
+> ⛔ **未实现（历史规划）**：`vox serve` / `vox infer` CLI 未建立。
+> 现有命令行入口为 `packages/voxcpm-cloud` 的冒烟 example 与各 Python server 的 `main()`。
+
 **目标**：给使用者最小可用的「软件」。
 
 - `cli`：`vox serve --runtime burn --device vulkan` 起本地服务器；
@@ -81,6 +114,11 @@
 **完成标准**：新用户按 README 跑通本地推理。
 
 ## 阶段 M5 — pytorch 运行时
+
+> ⛔ **命名与形态未采用（历史规划）**：`runtime-pytorch` Rust crate、pyo3 集成、
+> 「独立 HTTP 服务器复用 shared-proto」均未落地。实际是独立的 Python 服务
+> `packages/voxcpm_torch_server` / `demucs_torch_server`（uv workspace），走 Gradio 契约。
+
 **目标**：第二条独立运行时，覆盖 PyTorch 生态设备。
 
 - `runtime-pytorch` crate：参考 `submodule/VoxCPM`（官方 PyTorch 实现，`torch>=2.5`，
@@ -121,7 +159,7 @@
 | LocalDub `packages/voxlab` | → 本仓库 | 归属逻辑 |
 |---|---|---|
 | Rust `wav.rs` (read/write/resample) | `vox-core` | 通用 wav 工具, 与 VoxCPM 无关 |
-| Rust `gradio_client.rs` | `vox-core` | 通用 Gradio HTTP 客户端 (任何 Gradio 服务) |
+| Rust `gradio_client.rs` | ❌ 未迁入 | 自研客户端已删除，改用 `gradio` crate（见下） |
 | Rust `engines/voxcpm/cloud.rs` | `voxcpm-cloud` | VoxCPM 专属语义 (cfg/dit_steps/prompt/user_id) |
 | Rust `main.rs` (cloud 冒烟 bin) | `voxcpm-cloud` main/example | 冒烟的是 cloud 后端 |
 | TS `engines/voxcpm/cloud.ts` | ✅ 已移植 (`voxcpm-cloud/src/index.ts`) | Gradio 6.10 契约实测 |
@@ -130,14 +168,16 @@
 
 **待办**：
 - [x] Rust `cloud.rs` (VoxCPMCloud/Config/TtsResult) 移入 `voxcpm-cloud`
-- [x] Rust `wav.rs` 移入 `vox-core`；自研 `gradio_client.rs` 已删除，改用官方推荐的 `gradio` crate（支持 Gradio 4/5/6）
+- [x] Rust `wav.rs` 移入 `vox-core`；自研 `gradio_client.rs` 已删除，改用 `gradio` crate
 - [x] 冒烟 CLI 移为 `examples/smoke.rs`（clap 派生参数），`main.rs` 删除
-- [x] Gradio 客户端曾尝试替换为 `gradio` crate —— **实测失败**: 6.10 的
-      `/gradio_api/info` 中 `parameters[].label` 是 i18n map（非 string）,
-      `Client::new_sync` 解析即失败。已回退自研客户端（对 6.10 实测可用）。
-      已报上游 issue: https://github.com/JacobLinCool/gradio-rs/issues/10
-      （含响应样例与修复建议; 上游修复后可用 `examples/verify_config.rs` 验证）
-- [ ] LocalDub 侧 `stages/tts/mod.rs` 的依赖切换 (见未决)
+- [x] `gradio` crate 的 6.10 兼容问题**已在上游修复**：早期 `parameters[].label`
+      是 i18n map（非 string）导致 `Client::new_sync` 解析失败，曾回退自研客户端
+      并报 https://github.com/JacobLinCool/gradio-rs/issues/10。
+      现依赖 `gradio = { git = JacobLinCool/gradio-rs, tag = v0.4.2 }`
+      （支持 Gradio 4/5/6，已修复 label i18n），`voxcpm-cloud/src/cloud.rs`
+      直接用 `gradio::{Client, ClientOptions, PredictionInput, PredictionOutput}`，
+      自研客户端不再保留。`examples/verify_config.rs` 保留作响应校验参考。
+- [ ] LocalDub 侧 `steps/tts/mod.rs` 的依赖切换 (见未决)
 - [ ] `packages/voxlab` 在 LocalDub 侧退役
 
 **未决**：
@@ -147,7 +187,7 @@
   迁入: 它们是本地 VoxCPM 推理实验 (非 cloud); LocalDub 的 TS 路径
   (`voxcpm_torch_gradio.ts`) 只用 `VoxCPMCloud`, 疑似死路径待确认
 
-**注意**：LocalDub 侧 cloud TTS 生产路径在用 (`stages/tts/mod.rs`),
+**注意**：LocalDub 侧 cloud TTS 生产路径在用 (`steps/tts/mod.rs`),
 切换依赖前保持其可用性。
 
 ## 未来候选（未排期）
@@ -164,12 +204,16 @@
   已补 windows 资产+sha256。
 
 ## 决策记录
-- 框架实现叫 **Runtime**，计算后端叫 **Device**（复用 Burn 的 backend 概念）。
-- **暂不做调度层**，用 `RuntimeConfig` 替代；先各 Runtime 自包含。
-- 每个 Runtime 能独立调用、独立起服务器。
-- 以 `submodule/voxcpm-rs`（Burn 实现）作为 burn 运行时的基础依赖/参考。
-- 以 `submodule/VoxCPM`（官方 PyTorch 实现）作为 pytorch 运行时的参考。
-- **实测**：官方 `voxcpm.modelbest.cn` 是 Gradio 6.10 应用，非 OpenAI 服务。
-  云端契约 = Gradio `/gradio_api/predict` `/generate`，由 `runtime-cloud` 单独对接；
-  本地运行时仍采用 OpenAI `/v1/audio/speech` 作为自有标准契约。两者不互通。
-- 权重范围：仅推理/部署，不含训练与微调。
+
+决策已迁至 **[`docs/decisions/`](./docs/decisions/README.md)**（ADR 一决策一文件，
+唯一真相）。摘要与索引见该目录 README，主要条目：
+
+- [0001](./docs/decisions/0001-terminology-and-scope.md) 术语（Runtime / Device）与项目范围
+- [0002](./docs/decisions/0002-no-scheduler-compile-time-device.md) 不做调度层；Device 由编译期 feature 决定（`RuntimeConfig` 未落地）
+- [0003](./docs/decisions/0003-rust-cli-python-http.md) Rust 侧库 + CLI / Python 侧 HTTP 服务
+- [0004](./docs/decisions/0004-gradio-generate-contract.md) 全链路只用一套 Gradio `/generate` 契约（废弃 OpenAI `/v1/audio/speech` 两套并存）
+- [0005](./docs/decisions/0005-gradio-rs-client.md) Rust 客户端选用 `gradio` crate v0.4.2（废弃自研）
+- [0006](./docs/decisions/0006-submodules-and-runtimes.md) 子模块与运行时依赖选型
+- [0007](./docs/decisions/0007-config-conventions.md) 配置约定（模板入库、加载器未实现）
+
+新增或变更决策写到 `docs/decisions/`，不要在此处另起一份。
