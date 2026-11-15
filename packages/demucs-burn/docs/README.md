@@ -21,8 +21,15 @@
 | PyTorch CPU shifts=3 | ~7.9–11.9 | 质量最好 (CER 7.18%) 但最慢 |
 | burn wgpu (RADV Vulkan) | ~2.3–2.8 | 需 warmup；autotune 会触发驱动 hang |
 
+> 以上为 **Burn 0.20.1 / CubeCL 0.9.0 + Radeon 780M (RADV, gfx1103)** 下的实测，
+> 反映的是当时 wgpu 后端成熟度，**不是 Demucs 模型不适合 GPU**。归因与上游更新见
+> [`packages/research/separate/readme.md`](../../../research/separate/readme.md) 的
+> 「归因：后端而非模型」「上游更新」。
+
 ## 已知问题速查
 
-- 整网 GPU 推理 → GPU Hang 黑屏（gfx1103 MES firmware 0x83）；CPU 是唯一稳定路径
+- 整网 GPU 推理 → GPU Hang 黑屏（**780M / gfx1103 MES firmware 0x83 + Burn 0.20.1 wgpu**）；
+  在此硬件+版本组合下 CPU 是唯一稳定路径。此为驱动/后端限制，非模型固有特性，
+  换独显或升级 Burn 后需重测
 - 分离后 vocals 低噪 → whisper 幻觉循环；sidechain compression (-12dB BGM 填充) 可消除
 - GGML 输出 32-bit float WAV 使 whisper.cpp CER 劣化到 14.72%，须转 16-bit
