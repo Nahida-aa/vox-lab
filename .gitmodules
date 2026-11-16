@@ -19,3 +19,6 @@
 [submodule "submodule/demucs.cpp"]
 	path = submodule/demucs.cpp
 	url = https://github.com/sevagh/demucs.cpp.git
+[submodule "submodule/demucs-wgpu"]
+	path = submodule/demucs-wgpu
+	url = https://github.com/Nahida-aa/demucs-wgpu.git
