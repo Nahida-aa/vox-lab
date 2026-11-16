@@ -1,0 +1,107 @@
+name: release-demucs-tch-linux
+
+# 手动触发: 构建 demucs-tch (tch-rs / libtorch CPU) 的 Linux
+# (x86_64-unknown-linux-gnu) 资产并上传到对应 GitHub Release。
+#
+# 资产形态: zip, 因为 tch-rs 动态链 libtorch (torch-sys 的 download-libtorch 产物)。
+# zip 内 exe + libtorch .so 平铺, 解压目录即 bin dir
+# (Linux 需经 LD_LIBRARY_PATH=bin_dir 提供 libtorch)。
+# 命名: demucs-tch-x86_64-unknown-linux-gnu.zip, 与 Windows 形态一致。
+#
+# 已知前提:
+#   - demucs-tch 是独立 workspace, 需在 packages/demucs-tch 目录下构建,
+#     产物在 packages/demucs-tch/target/release/ (不在根 target/)。
+#   - torch-sys 经 download-libtorch 拉官方 libtorch 预编译 (PyTorch 2.15), 无需本机装。
+#   - 冒烟仅验证 exe 可启动 (libtorch depends 齐全) + --model-dir 路径解析。
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "构建并上传 demucs-tch 到 demucs-tch-v0.1.0"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: build release bin
+        shell: bash
+        working-directory: packages/demucs-tch
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
+            cargo build --release --bin demucs-tch
+          fi
+          ls -la target/release/demucs-tch 2>/dev/null || true
+
+      - name: smoke test (可启动, libtorch depends 齐全)
+        shell: bash
+        working-directory: packages/demucs-tch
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
+            libtorch_dir=$(find target/release/build -maxdepth 5 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+            [ -n "$libtorch_dir" ] || { echo "libtorch dir not found"; exit 1; }
+            LD_LIBRARY_PATH="$libtorch_dir" ./target/release/demucs-tch --help >/dev/null
+          fi
+          echo "smoke ok"
+
+      - name: package zip + sha256
+        shell: bash
+        working-directory: packages/demucs-tch
+        run: |
+          set -euo pipefail
+          out_dir="$RUNNER_TEMP/out"
+          mkdir -p "$out_dir"
+          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
+            staging="$out_dir/demucs-tch"
+            mkdir -p "$staging"
+            cp target/release/demucs-tch "$staging/"
+            # libtorch .so 平铺进 zip (与 exe 同目录, 解压后 LD_LIBRARY_PATH=bin_dir 可用)
+            libtorch_dir=$(find target/release/build -maxdepth 5 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+            cp "$libtorch_dir"/*.so* "$staging/" 2>/dev/null || true
+            # zip 内文件平铺到根 (解压目录即 bin dir)
+            pushd "$staging" >/dev/null
+            asset="$out_dir/demucs-tch-x86_64-unknown-linux-gnu.zip"
+            zip -q -r "$asset" .
+            popd >/dev/null
+            hash=$(sha256sum "$asset" | awk '{print $1}')
+            echo "demucs-tch-x86_64-unknown-linux-gnu.zip  $hash  $(stat -c%s "$asset")" | tee -a "$out_dir/sha256.txt"
+          fi
+
+      - name: create release (幂等)
+        shell: bash
+        run: |
+          gh release create demucs-tch-v0.1.0 --title "demucs-tch v0.1.0" --notes "demucs-tch Linux 资产 (tch-rs / libtorch CPU, zip 平铺)" 2>/dev/null || echo "release 已存在, 继续"
+
+      - name: upload asset to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="$RUNNER_TEMP/out"
+          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
+            gh release upload demucs-tch-v0.1.0 "$out_dir/demucs-tch-x86_64-unknown-linux-gnu.zip" --clobber
+          fi
+          echo "upload done"
+
+      - name: print sha256
+        shell: bash
+        run: |
+          cat "$RUNNER_TEMP/out/sha256.txt"

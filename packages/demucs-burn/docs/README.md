@@ -2,6 +2,7 @@
 
 | 文档 | 内容 |
 |---|---|
+| [gpu-backend-outlook.md](./gpu-backend-outlook.md) | GPU 路径现状、Burn 升级预期、`burn-tch` 移除时间线、AMD 侧排查清单 |
 | [cpu-fallback.md](./cpu-fallback.md) | GPU hang 根因（CrossTransformer + Wiener）→ CPU fallback 结论 |
 | [pytorch-cpu-optimization.md](./pytorch-cpu-optimization.md) | PyTorch CPU 路径优化方案分析（历史记录，部分路径已过时） |
 | [conv-patch.md](./conv-patch.md) | GEMM 卷积 patch — GPU hang 规避参考，未启用 |
