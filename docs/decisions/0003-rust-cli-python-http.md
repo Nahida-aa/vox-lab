@@ -26,7 +26,8 @@ date: 2026-11-14
 - **Python 侧**（uv workspace）才起 HTTP 服务：
   - `packages/voxcpm_torch_server`：FastAPI + Gradio（复刻云端 `/generate`），
     另有 `/status`、`/load-model`、`/unload-model` 与 mDNS 发现，默认端口 19112。
-  - `packages/demucs_torch_server`：本地 Demucs PyTorch 服务。
+  - `packages/demucs_pytorch`：PyTorch 参考实现（校验 `demucs-tch`）。
+    （原 `demucs_torch_server` HTTP 服务已由此取代。）
   - `packages/servers_py`：上述服务公共依赖。
 
 ## 后果

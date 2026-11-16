@@ -37,7 +37,7 @@ date: 2026-11-14
 `cli` / `ts-client` / `config` 等 crate **均未按该命名落地**。实际能力分散在：
 
 - Rust：`voxcpm-burn`、`demucs-burn`、`voxcpm-cloud`、`vox-core`、`voice-cloning`、`util`
-- Python：`voxcpm_torch_server`、`demucs_torch_server`、`servers_py`
+- Python：`voxcpm_torch_server`、`demucs_pytorch`（PyTorch 参考验证工具）、`servers_py`
 
 详见 README「仓库布局（现状）」与 [0003](./0003-rust-cli-python-http.md)。
 

@@ -117,7 +117,8 @@
 
 > ⛔ **命名与形态未采用（历史规划）**：`runtime-pytorch` Rust crate、pyo3 集成、
 > 「独立 HTTP 服务器复用 shared-proto」均未落地。实际是独立的 Python 服务
-> `packages/voxcpm_torch_server` / `demucs_torch_server`（uv workspace），走 Gradio 契约。
+> `packages/voxcpm_torch_server` / `demucs_pytorch`（uv workspace，后者现为
+校验 `demucs-tch` 的 PyTorch 参考实现），走 Gradio 契约。
 
 **目标**：第二条独立运行时，覆盖 PyTorch 生态设备。
 

@@ -25,7 +25,8 @@ PyTorch 与云端运行时在不同设备（CPU / Vulkan / CUDA / ROCm …）上
    「公共逻辑库 + 每个后端一个独立 CLI 二进制」——如 `voxcpm-burn` 产出
    `voxcpm-burn-cpu` / `-vulkan` / `-wgpu` / `-tch`，`demucs-burn` 另有
    `-cuda` / `-rocm`；**它们不起 HTTP 服务**。HTTP 服务只在 Python 侧
-   （`voxcpm_torch_server` / `demucs_torch_server`，FastAPI + Gradio）。
+   （`voxcpm_torch_server`，FastAPI + Gradio）。`packages/demucs_pytorch/` 是
+   PyTorch 参考实现，仅用于校验 `demucs-tch`，不是服务。
 2. **Device 在编译期选定，不在运行时切换**：每个后端由 Cargo feature 门控
    （`cpu` / `wgpu` / `vulkan` / `tch` / `cuda` / `rocm`），一个二进制绑定一个
    Burn backend。不存在「同一 Runtime 运行时切 device」的正交关系，也没有
@@ -123,7 +124,7 @@ Cargo workspace 成员见根 `Cargo.toml`；`packages/` 下按职责分组：
 | 分组 | 目录 | 说明 |
 |------|------|------|
 | Rust 运行时 | `voxcpm-burn`、`demucs-burn`、`voxcpm-cloud`、`vox-core`、`voice-cloning`、`util` | Burn / 云端对接 / 公共 wav·工具库 |
-| Python 服务 | `voxcpm_torch_server`、`demucs_torch_server`、`servers_py` | uv workspace，本地 PyTorch/Gradio 服务 |
+| Python 服务/工具 | `voxcpm_torch_server`、`demucs_pytorch`、`servers_py` | uv workspace；`demucs_pytorch` 为校验 `demucs-tch` 的 PyTorch 参考实现 |
 | 基准 | `benchmark/`（asr / ocr / separate / VC 等子目录与 `results/FINDINGS.md`） | 各后端 RTF / CER / 内存实测 |
 | 研究记录 | `research/`（ROCm hang、模型加载耗时、ONNX NaN、ASR 回归等） | 问题排查与结论沉淀 |
 | 经验文档 | `packages/demucs-burn/docs/` | cpu fallback、conv patch、权重来源、后端基准 |
@@ -160,7 +161,8 @@ voxcpm 多后端 TS 引擎**：
 `cfg_value` / `dit_steps`），用官方 `VoxCPM.from_pretrained` 在本地 cpu/cuda 跑，
 并额外提供 `/status`、`/load-model`、`/unload-model` 与 mDNS 发现（默认端口 19112）。
 **这意味着本地可直接起一个与云端同契约的服务**，用于确定性测试。
-同批迁入的还有 `demucs_torch_server` 与公共依赖 `servers_py`。
+同批迁入的还有 `servers_py` 公共依赖；原 `demucs_torch_server` 已整理为
+`packages/demucs_pytorch/`（PyTorch 参考验证工具）。
 
 ### 3) 本项目 `packages/voxcpm-cloud`（已实测跑通）
 `packages/voxcpm-cloud/` 已作为独立测试模块落地，基于 `@gradio/client`：
@@ -191,8 +193,8 @@ vox-lab/
 │   ├── voice-cloning/            # 声音克隆相关
 │   ├── util/                     # cargo_build_cmd / cargo_build_bin 等构建辅助
 │   ├── voxcpm_torch_server/      # 本地 VoxCPM Gradio 服务（复刻云端签名）
-│   ├── demucs_torch_server/      # 本地 Demucs PyTorch 服务
-│   ├── servers_py/               # 上述 Python 服务公共依赖
+│   ├── demucs_pytorch/           # PyTorch 参考实现（校验 demucs-tch）
+│   ├── servers_py/               # Python 服务公共依赖
 │   ├── benchmark/                # ASR / 分离 / OCR / VC 基准与 results/
 │   └── research/                 # 问题排查与实验记录
 ├── assets/  data/  e2e/  target/  tmp/
