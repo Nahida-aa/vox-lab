@@ -46,7 +46,7 @@ def cmd_generate(args: argparse.Namespace) -> None:
 
 def cmd_profile(args: argparse.Namespace) -> None:
     model = core.load_model(
-        args.model_dir, device=args.device, optimize=False, dtype=args.dtype
+        args.model_dir, device=args.device, optimize=args.optimize, dtype=args.dtype
     )
     times = core.stage_breakdown(
         model, args.text, cfg_value=args.cfg, dit_steps=args.dit_steps,
@@ -91,6 +91,7 @@ def main() -> None:
     pr = sub.add_parser("profile", help="按阶段聚合耗时（LM / residual LM / CFM / VAE）")
     _add_common(pr)
     pr.add_argument("--dtype", default=None, help="覆盖权重精度：fp32 / bf16 / fp16（默认用 checkpoint 的 bf16）")
+    pr.add_argument("--optimize", action="store_true", help="启用 torch.compile（与线上口径一致，但会掩盖单算子耗时）")
     pr.set_defaults(func=cmd_profile)
 
     d = sub.add_parser("dtype", help="对比 bf16 / fp16 / fp32 的精度与耗时")

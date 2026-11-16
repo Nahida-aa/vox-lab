@@ -61,6 +61,25 @@ bf16 支持现状（本机核对 2026-11-17）：
 - 若实验显示 LM 解码占绝对多数，则结论是「GPU 救不了」，继续用 CPU；
   若 CFM/VAE 占比高，再评估只搬这两段（可复用 demucs-wgpu 的 kernel 骨架）。
 
+## 实验环境记录（2026-11-17，未完成）
+
+参考口径：用户线上 **RTF 4–6**（生成耗时 / 音频时长，越小越快），且是开启
+`torch.compile`（`optimize=True`）后测的。我们默认 `optimize=False` 是为了让
+profiler 看到真实算子耗时，两者不可直接对比。
+
+本仓库 `.venv` 上实验未能完成，卡点记录如下（避免重复踩）：
+
+- `torchaudio` 无 cp314 wheel（PyPI 与 rocm7.2 索引都没有），`voxcpm` 顶层
+  无条件 import → `core` 里加了桩，音频 IO 路径会显式报错。
+- 模型能加载完（日志到 `Running on device: ...`），但生成阶段在约 26 s 后收到
+  SIGTERM 退出，CPU / GPU 均如此；`--max-len 8`、`--dit-steps 2` 也无法绕过，
+  说明不是「慢」而是环境问题（python 3.14 + torch 2.14+rocm7.2 + 桩的组合）。
+- 因此分段耗时与 dtype SNR 尚未获得；工具本身（`core` / `cli` / `server`）已就绪。
+
+下次尝试顺序：换到 VoxCPM 已验证可跑的 Python 3.12 环境 → 先跑 `generate`
+（无 profiler）确认能出音频 → 再跑 `profile`；若 profiler 本身成为瓶颈，改用
+`torch.profiler` 的 `schedule` 只采样一个 token。
+
 ## 相关
 
 - [0010](./0010-demucs-wgpu-backend.md) demucs 的自研 WGSL 路径
