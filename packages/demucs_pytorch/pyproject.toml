@@ -1,7 +1,7 @@
 [project]
-name = "demucs-torch-server"
+name = "demucs-pytorch"
 version = "0.1.0"
-description = "Local ML Torch server (ASR + Demucs separate)"
+description = "Local Demucs PyTorch server (ASR + separation)"
 requires-python = ">=3.12"
 dependencies = [
     "servers-py",
@@ -11,4 +11,5 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = []
+where = ["."]
+include = ["demucs_pytorch*"]

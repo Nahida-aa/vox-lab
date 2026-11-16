@@ -1,0 +1,17 @@
+# demucs-pytorch: PyTorch reference for validating demucs-tch.
+# Run from repo root; `uv run` resolves the workspace member.
+
+# Compare demucs-tch output against the official PyTorch reference.
+# Usage: just compare <input.wav> <demucs-tch-out-dir> [model]
+compare wav out model="htdemucs":
+    uv run --project packages/demucs_pytorch python -m demucs_pytorch.cli {{wav}} {{out}} --model {{model}}
+
+# Produce reference stems only (saved next to input as .npy by core.separate callers).
+server:
+    uv run --project packages/demucs_pytorch python -m demucs_pytorch.server
+
+dev:
+    uv run --project packages/demucs_pytorch python -m demucs_pytorch.cli --help
+
+install:
+    uv pip install fastapi uvicorn soundfile numpy torch
