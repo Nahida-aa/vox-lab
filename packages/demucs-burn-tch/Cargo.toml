@@ -1,0 +1,27 @@
+[workspace]
+
+# 独立 workspace：性能对比基线。burn-tch (tch 0.22 / torch-sys 0.22) 与
+# demucs-tch 的 tch 0.27 (torch-sys 0.27) 存在 links = "tch" 冲突，
+# 二者不能进同一依赖图，故本包不列入根 workspace members。
+
+[package]
+name = "demucs-burn-tch"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "demucs-burn-tch"
+path = "src/bin/demucs-burn-tch.rs"
+
+[dependencies]
+demucs-burn = { path = "../demucs-burn", default-features = false }
+burn = { version = "0.21", default-features = false, features = ["tch"] }
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+
+# demucs-burn is a path dependency that uses `clap.workspace = true` /
+# `anyhow.workspace = true`. When pulled into this standalone workspace those
+# resolve against THIS workspace's [workspace.dependencies], so mirror them here.
+[workspace.dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"

@@ -89,9 +89,23 @@ short.wav 为合成噪声，官方实现同样把绝大部分能量归到 `other
 不同，且小幅度信号对数值噪声极敏感。**不宜据此宣称逐 stem 完全对齐**，
 若需更强结论应改用人声/音乐等真实音频并统一后处理再比对。
 
+## 性能对比（demucs-burn-tch 基线，2026-11-16）
+
+`packages/demucs-burn-tch/` 是 Burn 0.21 `LibTorch` CPU 后端的独立 workspace
+性能基线（复用 demucs-burn 的 `run`，同样因 `links = "tch"` 冲突而独立）。
+同一 `short.wav`(10s/44.1kHz)、同一 `htdemucs` 权重、各自 release、串行独占 CPU：
+`demucs-burn-tch`（libtorch 2.9）Gen 12.06/10.94s，`demucs-tch`（libtorch 2.15）
+Gen 12.43/11.48s，RTF 均 ~1.1–1.24。**两者基本持平（差 ~3–5%，噪声范围）**，
+说明用 tch-rs 脱离 Burn 没有可测量的性能代价。
+
+> 并行跑会因抢 CPU 使两边数据大幅波动且方向相反（已作废）。这是「两条不同
+> Rust 实现 + 不同 libtorch 版本」的端到端对比，不是纯 backend 对比。
+> 构建/运行方式与原始数据见 `packages/demucs-burn-tch/README.md`。
+
 ## 相关
 
 - [0002](./0002-no-scheduler-compile-time-device.md) Device 由编译期 feature 决定
 - [0003](./0003-rust-cli-python-http.md) Rust 侧库 + CLI 形态
 - `packages/research/separate/readme.md` 的「上游更新」记录了 Burn 0.21/0.22 的性能改进
-- `packages/demucs_pytorch/` 的 `cli.py` 提供上述对比命令
+- `packages/demucs_pytorch/` 的 `cli.py` 提供数值对比命令
+- `packages/demucs-burn-tch/` 提供 Burn 0.21 的性能对比基线
