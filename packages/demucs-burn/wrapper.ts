@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
 const RELEASE_DIR = join(REPO_ROOT, "target", "release");
 
-type Backend = "wgpu" | "tch";
+type Backend = "wgpu";
 
 interface BurnOptions {
   backend?: Backend;
@@ -21,21 +21,9 @@ interface BurnResult {
   genTimeS: number;
 }
 
-function findLibtorchPath(): string | null {
-  const buildDir = join(RELEASE_DIR, "build");
-  if (!existsSync(buildDir)) return null;
-  for (const dir of readdirSync(buildDir)) {
-    if (!dir.startsWith("torch-sys-")) continue;
-    const libDir = join(buildDir, dir, "out", "libtorch", "libtorch", "lib");
-    if (existsSync(join(libDir, "libtorch_cpu.so"))) return libDir;
-  }
-  return null;
-}
-
 export function runBurn(input: string, outDir: string, opts: BurnOptions = {}): BurnResult {
-  const backend: Backend = opts.backend ?? "wgpu";
-  const binName = backend === "tch" ? "demucs-burn-tch" : "demucs-burn-wgpu";
-  const binPath = join(RELEASE_DIR, binName);
+  const _backend: Backend = opts.backend ?? "wgpu";
+  const binPath = join(RELEASE_DIR, "demucs-burn-wgpu");
 
   if (!existsSync(binPath)) {
     throw new Error(`Binary not found: ${binPath}.`);
@@ -47,23 +35,14 @@ export function runBurn(input: string, outDir: string, opts: BurnOptions = {}): 
   if (opts.tasksMax) args.push("--tasks-max", String(opts.tasksMax));
   args.push(input, outDir);
 
-  const env: Record<string, string> = { ...(process.env as Record<string, string>) };
-  if (backend === "tch") {
-    const libtorchLib = findLibtorchPath();
-    if (!libtorchLib) {
-      throw new Error("libtorch not found. Build tch binary first.");
-    }
-    env.LD_LIBRARY_PATH = [libtorchLib, env.LD_LIBRARY_PATH].filter(Boolean).join(":");
-  }
-
   const result = spawnSync(binPath, args, {
-    env,
+    env: process.env,
     timeout: opts.timeout ?? 600_000,
     encoding: "utf-8",
   });
 
   if (result.status !== 0) {
-    throw new Error(`demucs-burn-${backend} failed (exit ${result.status}):\n${result.stderr}`);
+    throw new Error(`demucs-burn-wgpu failed (exit ${result.status}):\n${result.stderr}`);
   }
 
   const stdout = result.stdout ?? "";
@@ -84,7 +63,7 @@ if (import.meta.path === process.argv[1]) {
   const input = args.find((a) => !a.startsWith("--"));
   const outDir = args[args.indexOf(input!) + 1];
   if (!input || !outDir) {
-    console.error("Usage: bun wrapper.ts <input.wav> <outDir> [--backend wgpu|tch] [--warmup]");
+    console.error("Usage: bun wrapper.ts <input.wav> <outDir> [--backend wgpu] [--warmup]");
     process.exit(1);
   }
   const backendIdx = args.indexOf("--backend");

@@ -1,11 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
 const RELEASE_DIR = join(REPO_ROOT, 'target', 'release');
 
-type Backend = 'vulkan' | 'wgpu' | 'cpu' | 'tch';
+type Backend = 'vulkan' | 'wgpu' | 'cpu';
 
 interface VoxCpmOptions {
   backend?: Backend;
@@ -21,17 +21,6 @@ interface VoxCpmResult {
   loadTimeS: number;
   warmupTimeS: number;
   genTimeS: number;
-}
-
-function findLibtorchPath(): string | null {
-  const buildDir = join(RELEASE_DIR, 'build');
-  if (!existsSync(buildDir)) return null;
-  for (const dir of readdirSync(buildDir)) {
-    if (!dir.startsWith('torch-sys-')) continue;
-    const libDir = join(buildDir, dir, 'out', 'libtorch', 'libtorch', 'lib');
-    if (existsSync(join(libDir, 'libtorch_cpu.so'))) return libDir;
-  }
-  return null;
 }
 
 export function runVoxCpm(text: string, output: string, opts: VoxCpmOptions = {}): VoxCpmResult {
@@ -53,14 +42,6 @@ export function runVoxCpm(text: string, output: string, opts: VoxCpmOptions = {}
 
   const env: Record<string, string> = { ...process.env as Record<string, string> };
   env.CUBECL_AUTOTUNE_LEVEL = 'minimal';
-
-  if (backend === 'tch') {
-    const libtorchLib = findLibtorchPath();
-    if (!libtorchLib) {
-      throw new Error('libtorch not found. Build tch binary first.');
-    }
-    env.LD_LIBRARY_PATH = [libtorchLib, env.LD_LIBRARY_PATH].filter(Boolean).join(':');
-  }
 
   const result = spawnSync(binPath, args, { env, timeout: opts.timeout ?? 600_000, encoding: 'utf-8' });
 
@@ -86,7 +67,7 @@ if (import.meta.path === process.argv[1]) {
   const text = args.find(a => !a.startsWith('--'));
   const output = args[args.indexOf(text!) + 1];
   if (!text || !output) {
-    console.error('Usage: bun wrapper.ts <text> <output.wav> [--backend vulkan|wgpu|cpu|tch] [--timesteps N] [--cfg N] [--max-len N] [--warmup]');
+    console.error('Usage: bun wrapper.ts <text> <output.wav> [--backend vulkan|wgpu|cpu] [--timesteps N] [--cfg N] [--max-len N] [--warmup]');
     process.exit(1);
   }
   const backendIdx = args.indexOf('--backend');

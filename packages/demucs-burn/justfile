@@ -10,9 +10,9 @@ set lists
 #   just bench <in.wav> <out>  # 推理基准（--benchmark-rounds N 可传）
 #
 # backend 与 feature/bin 对应（Cargo.toml）：
-#   wgpu -> demucs-burn-wgpu (default)   tch -> demucs-burn-tch
-#   cpu  -> demucs-burn-cpu              rocm -> demucs-burn-rocm
-#   cuda -> demucs-burn-cuda
+#   wgpu -> demucs-burn-wgpu (default)   cpu  -> demucs-burn-cpu
+#   rocm -> demucs-burn-rocm             cuda -> demucs-burn-cuda
+# 注意：tch 后端已独立为 packages/demucs-tch（tch-rs，脱离 Burn）。
 
 # ---- 默认任务（`just` 无参即显示列表） ----
 default:
