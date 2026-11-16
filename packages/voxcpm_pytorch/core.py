@@ -81,6 +81,32 @@ def _ensure_torchaudio() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _model_dir_with_dtype(model_dir: Path, dtype: str) -> Path:
+    """Return a model dir whose config.json declares `dtype`.
+
+    `dtype` lives in config.json and drives the KV cache dtype at construction
+    time, so casting after `from_local` has no effect. Rather than monkey-patching
+    internals, mirror the dir with symlinks and rewrite just the config.
+    """
+    import json
+    import os
+
+    cache = Path("/tmp") / "vox-lab-voxcpm-dtype" / f"{model_dir.name}-{dtype}"
+    cache.mkdir(parents=True, exist_ok=True)
+    config_src = model_dir / "config.json"
+    config = json.loads(config_src.read_text(encoding="utf-8"))
+    config["dtype"] = dtype
+    (cache / "config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
+    for entry in model_dir.iterdir():
+        if entry.name == "config.json":
+            continue
+        dst = cache / entry.name
+        if dst.exists() or dst.is_symlink():
+            continue
+        os.symlink(entry.resolve(), dst)
+    return cache
+
+
 def load_model(
     model_dir: str | Path = DEFAULT_MODEL_DIR,
     device: str = "cpu",
@@ -97,9 +123,15 @@ def load_model(
     _ensure_voxcpm_importable()
     from voxcpm import VoxCPM
 
+    src_dir = Path(model_dir)
+    if dtype is not None:
+        normalized = {"fp32": "float32", "f32": "float32", "fp16": "float16",
+                      "f16": "float16", "bf16": "bfloat16"}.get(dtype.lower(), dtype)
+        src_dir = _model_dir_with_dtype(src_dir, normalized)
+
     t0 = time.perf_counter()
     model = VoxCPM.from_pretrained(
-        str(model_dir),
+        str(src_dir),
         load_denoiser=False,
         device=device,
         optimize=optimize,
@@ -119,9 +151,7 @@ def load_model(
         }.get(dtype.lower())
         if torch_dtype is None:
             raise ValueError(f"unsupported dtype: {dtype}")
-        # config.dtype 决定 KV cache / 内部 cast 的精度，单靠 .to() 不够
-        if hasattr(model.tts_model, "config"):
-            model.tts_model.config.dtype = dtype
+        # 上面的 config dir 已让 KV cache 用这个精度；这里再 cast 一次权重兜底。
         model.tts_model.to(torch_dtype)
 
     model._vox_lab_load_s = load_s  # type: ignore[attr-defined]
@@ -183,6 +213,12 @@ class StageTimes:
 
     stages: dict[str, float]
     total_ms: float
+    wall_s: float = 0.0
+    audio_s: float = 0.0
+
+    @property
+    def rtf(self) -> float:
+        return self.wall_s / self.audio_s if self.audio_s else 0.0
 
     def rows(self) -> list[tuple[str, float, float]]:
         rows = []
@@ -213,8 +249,13 @@ def profiled_generate(model, text: str, **kwargs) -> tuple[np.ndarray, StageTime
     if torch.cuda.is_available():
         activities.append(torch.profiler.ProfilerActivity.CUDA)
 
+    if torch.cuda.is_available() and "cuda" in str(getattr(model, "device", "")):
+        torch.cuda.synchronize()
+
+    t0 = time.perf_counter()
     with torch.profiler.profile(activities=activities, record_shapes=False) as prof:
         wav = generate(model, text, **kwargs)
+    wall_s = time.perf_counter() - t0
 
     stages: dict[str, float] = {}
     for evt in prof.key_averages():
@@ -223,7 +264,12 @@ def profiled_generate(model, text: str, **kwargs) -> tuple[np.ndarray, StageTime
             continue
         stage = _classify(evt.key)
         stages[stage] = stages.get(stage, 0.0) + float(ms)
-    return wav, StageTimes(stages=stages, total_ms=sum(stages.values()))
+    return wav, StageTimes(
+        stages=stages,
+        total_ms=sum(stages.values()),
+        wall_s=wall_s,
+        audio_s=len(wav) / DEFAULT_SAMPLE_RATE,
+    )
 
 
 def stage_breakdown(model, text: str, **kwargs) -> StageTimes:

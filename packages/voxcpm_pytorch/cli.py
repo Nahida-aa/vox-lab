@@ -56,6 +56,7 @@ def cmd_profile(args: argparse.Namespace) -> None:
     for name, ms, share in times.rows():
         print(f"{name:12} {ms:10.1f} {share:7.1f}%")
     print(f"{'total':12} {times.total_ms:10.1f}  (profiler self-time sum)")
+    print(f"wall {times.wall_s:.2f}s  audio {times.audio_s:.2f}s  RTF {times.rtf:.2f}")
 
 
 def cmd_dtype(args: argparse.Namespace) -> None:
