@@ -70,7 +70,7 @@
 ## 阶段 M2 — burn 运行时：独立 HTTP 服务器
 
 > ⛔ **未实现（历史规划）**：Rust 侧没有 axum HTTP 服务器，`/v1/infer` 等端点不存在。
-> 实际起服务器的是 Python 侧 `packages/voxcpm_torch_server`（FastAPI + Gradio，
+> 实际起服务器的是 Python 侧 `packages/voxcpm_pytorch`（FastAPI + Gradio，
 > 复刻云端 `/generate` 签名），另有 `/status` `/load-model` `/unload-model` + mDNS。
 
 **目标**：burn 运行时自己起一个 HTTP 服务，契约对齐云端。
@@ -117,7 +117,7 @@
 
 > ⛔ **命名与形态未采用（历史规划）**：`runtime-pytorch` Rust crate、pyo3 集成、
 > 「独立 HTTP 服务器复用 shared-proto」均未落地。实际是独立的 Python 服务
-> `packages/voxcpm_torch_server` / `demucs_pytorch`（uv workspace，后者现为
+> `packages/voxcpm_pytorch` / `demucs_pytorch`（uv workspace，后者现为
 校验 `demucs-tch` 的 PyTorch 参考实现），走 Gradio 契约。
 
 **目标**：第二条独立运行时，覆盖 PyTorch 生态设备。

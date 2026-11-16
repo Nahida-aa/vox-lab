@@ -27,7 +27,7 @@
    `cpu` / `vulkan` / `wgpu` / `tch` 切分，现移出主 workspace 暂不构建
    （见 [ADR 0008](./docs/decisions/0008-demucs-tch-standalone-workspace.md)）。
    **它们不起 HTTP 服务**。HTTP 服务只在 Python 侧
-   （`voxcpm_torch_server`，FastAPI + Gradio）。`packages/demucs_pytorch/` 是
+   （`voxcpm_pytorch`，FastAPI + Gradio）。`packages/demucs_pytorch/` 是
    PyTorch 参考实现，仅用于校验 `demucs-tch`，不是服务。
    音源分离另有两条不依赖 Burn 的路径：`demucs-tch`（tch-rs / libtorch）与
    `demucs-wgpu`（自研 WGSL kernel + Vulkan，封装 `submodule/demucs-wgpu`），
@@ -43,7 +43,7 @@
    与独立预构建资产（`.github/workflows/release-*.yml`），按实测结论选默认后端
    （音源分离：CPU 走 `demucs-tch`，GPU 走 `demucs-wgpu`；Burn 侧历史基线见
    `packages/demucs-burn/docs/README.md`）。
-4. **对齐云端的 Gradio 契约**：本地 `voxcpm_torch_server` 复刻
+4. **对齐云端的 Gradio 契约**：本地 `voxcpm_pytorch` 复刻
    `voxcpm.modelbest.cn` 的 `/generate` 签名，客户端按同一 Gradio 协议对接，
    本地与云端靠「同签名」互换，而非另立一套标准。
 5. **只做推理/部署**：假设已有模型权重，不含训练与微调。
@@ -65,7 +65,7 @@
                  └────────────────┬──────────────────┬───────────┘
                                   │                  │
               ┌───────────────────┴────┐  ┌──────────┴─────────────────┐
-              │ 本地 voxcpm_torch_server│  │ 官方云端 voxcpm.modelbest.cn│
+              │ 本地 voxcpm_pytorch    │  │ 官方云端 voxcpm.modelbest.cn│
               │ FastAPI + Gradio        │  │ Gradio 6.10 应用            │
               │ 默认 127.0.0.1:19112    │  │                             │
               │ + /status /load-model   │  │                             │
@@ -91,7 +91,7 @@
 ### HTTP 契约：Gradio `/generate`（实测）
 
 > ⚠️ 实测结论：官方 `https://voxcpm.modelbest.cn` **不是** OpenAI/vLLM-Omni 服务，
-> 而是一个 **Gradio 6.10 应用**。本地 `voxcpm_torch_server` 复刻其 `/generate` 签名，
+> 而是一个 **Gradio 6.10 应用**。本地 `voxcpm_pytorch` 复刻其 `/generate` 签名，
 > 所以两者反而是同构的（同为 Gradio），并非「天然不同构」。
 > 该结论如何推翻立项架构，见 [ADR 0004](./docs/decisions/0004-gradio-generate-contract.md)；
 > Rust 客户端选型见 [ADR 0005](./docs/decisions/0005-gradio-rs-client.md)。
@@ -107,7 +107,7 @@
   ```
   对应：文本 / Voice Design 指令 / 参考音频(FileData) / 终极克隆开关 / 精准克隆转写 / cfg(1–3,默认2) /
   归一化 / 降噪 / CFM步数(1–50,默认10) / 用户ID
-- 本地服务 `generate()` 签名同上（`packages/voxcpm_torch_server/server.py`），
+- 本地服务 `generate()` 签名同上（`packages/voxcpm_pytorch/server.py`），
   返回 `(48000, np.ndarray)`；云端返回 Gradio `FileData`，
   `result.data[0].url` 即音频，`fetch` 后解析 WAV（默认 48kHz）。
 
@@ -135,7 +135,7 @@ Cargo workspace 成员见根 `Cargo.toml`；`packages/` 下按职责分组：
 |------|------|------|
 | Rust 运行时 | `voxcpm-burn`、`demucs-burn`、`voxcpm-cloud`、`vox-core`、`voice-cloning`、`util` | Burn / 云端对接 / 公共 wav·工具库 |
 | Rust 分离后端 | `demucs-tch`（tch-rs CPU，可构建 cuda/rocm 变体）、`demucs-burn-tch`（Burn 0.21 对比基线）、`demucs-wgpu`（自研 WGSL / Vulkan） | 均不依赖主 workspace 的 Burn 版本，各自独立 workspace |
-| Python 服务/工具 | `voxcpm_torch_server`、`demucs_pytorch`、`servers_py` | uv workspace；`demucs_pytorch` 为校验 `demucs-tch` 的 PyTorch 参考实现 |
+| Python 服务/工具 | `voxcpm_pytorch`、`demucs_pytorch`、`servers_py` | uv workspace；`voxcpm_pytorch` 分 `core` / `cli` / `server`，含精度与分段耗时实验 |
 | 基准 | `benchmark/`（asr / ocr / separate / VC 等子目录与 `results/FINDINGS.md`） | 各后端 RTF / CER / 内存实测 |
 | 研究记录 | `research/`（ROCm hang、模型加载耗时、ONNX NaN、ASR 回归等） | 问题排查与结论沉淀 |
 | 经验文档 | `packages/demucs-burn/docs/` | cpu fallback、conv patch、权重来源、后端基准 |
@@ -179,8 +179,8 @@ voxcpm 多后端 TS 引擎**：
 - `pth.ts`：本地 PyTorch（python 子进程）运行时参考
 - `onnx-node.ts`：ONNX Runtime (cpu/webgpu) 运行时参考
 
-### 2) `voxcpm_torch_server`（云端版的本地实现，Python/Gradio）
-已迁入 `packages/voxcpm_torch_server/`：一个**本地 Gradio 服务，复刻了
+### 2) `voxcpm_pytorch`（云端版的本地实现，Python/Gradio）
+已迁入 `packages/voxcpm_pytorch/`：一个**本地 Gradio 服务，复刻了
 `voxcpm.modelbest.cn` 的 `/generate` 签名**（含 `ultimate` / `prompt_text` /
 `cfg_value` / `dit_steps`），用官方 `VoxCPM.from_pretrained` 在本地 cpu/cuda 跑，
 并额外提供 `/status`、`/load-model`、`/unload-model` 与 mDNS 发现（默认端口 19112）。
@@ -191,13 +191,13 @@ voxcpm 多后端 TS 引擎**：
 ### 3) 本项目 `packages/voxcpm-cloud`（已实测跑通）
 `packages/voxcpm-cloud/` 已作为独立测试模块落地，基于 `@gradio/client`：
 - `connect()` + `predict('/generate', [...positionalArgs])`，参数顺序与 cloud.ts 一致
-- `--target cloud` 打真云端、`--target local` 打本地 `voxcpm_torch_server`
+- `--target cloud` 打真云端、`--target local` 打本地 `voxcpm_pytorch`
 - **实测结论**：真云端基础 TTS 与声音克隆（用 `assets/media/任务完成.wav`）均成功，
   产出 48kHz WAV（`tmp/voxcpm-cloud.wav` / `tmp/voxcpm-cloud-clone.wav`）
 
 **结论**：落地时沿用了这些已验证的抽象，没有重复造 `TTSBackend` /
 `TTSGenerateOptions`：`voxcpm-cloud` 用 `@gradio/client` 按 Gradio `/generate`
-对接云端与本地 `voxcpm_torch_server`（同签名互换），`voxcpm-burn` /
+对接云端与本地 `voxcpm_pytorch`（同签名互换），`voxcpm-burn` /
 `demucs-burn` 则是 Rust 库，不起 HTTP 服务。早期设想的 `runtime-burn` /
 `runtime-pytorch` 命名与 OpenAI 契约均未采用，见「仓库布局（现状）」。
 
@@ -219,7 +219,7 @@ vox-lab/
 │   ├── voxcpm-cloud/             # 云端 Gradio 契约客户端（TS + Rust）
 │   ├── voice-cloning/            # 声音克隆相关
 │   ├── util/                     # cargo_build_cmd / cargo_build_bin 等构建辅助
-│   ├── voxcpm_torch_server/      # 本地 VoxCPM Gradio 服务（复刻云端签名）
+│   ├── voxcpm_pytorch/           # VoxCPM 实验（core/cli）+ 本地 Gradio 服务
 │   ├── demucs_pytorch/           # PyTorch 参考实现（校验 demucs-tch）
 │   ├── servers_py/               # Python 服务公共依赖
 │   ├── benchmark/                # ASR / 分离 / OCR / VC 基准与 results/
@@ -313,7 +313,7 @@ settings.json         # 个人配置（差异大，忽略）
 - [x] 8 个子模块引入（VoxCPM / voxcpm-rs / Demucs 系 / demucs-wgpu / whisper.cpp / CosyVoice）
 - [x] Rust workspace + 多个 Rust 运行时 crate（`voxcpm-burn` / `demucs-burn` / `voxcpm-cloud` / `vox-core` 等）
 - [x] uv workspace + 本地 PyTorch / Gradio 服务（`*_torch_server`、`servers_py`）
-- [x] 云端与本地统一的 Gradio `/generate` 契约实测、文档化（`voxcpm-cloud` + `voxcpm_torch_server`）
+- [x] 云端与本地统一的 Gradio `/generate` 契约实测、文档化（`voxcpm-cloud` + `voxcpm_pytorch`）
 - [x] 配置约定落地：`.gitignore` / `settings.example.json` / `.env.example`
 - [x] 基准测试与研究记录沉淀（`benchmark/` + `research/`）
 - [x] Linux / Windows 预构建资产发布（whisper-vulkan、demucs-burn tch/wgpu、demucs-tch cpu）

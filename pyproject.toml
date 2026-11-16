@@ -14,7 +14,7 @@ include = []
 
 [tool.uv.workspace]
 members = [
-    "packages/voxcpm_torch_server",
+    "packages/voxcpm_pytorch",
     "packages/demucs_pytorch",
     "packages/servers_py",
 ]

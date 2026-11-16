@@ -25,7 +25,7 @@ date: 2026-11-14
   「本地与云端不互通」等说法。代码中不存在 `/v1/audio/speech`。
 - **实际采用**：全链路只有一套契约 —— **Gradio `/generate`**。
   - 云端 `voxcpm.modelbest.cn`：Gradio 6.10，`predict('/generate', [...10 参数])`。
-  - 本地 `packages/voxcpm_torch_server/server.py` 的 `generate()` **复刻同一签名**
+  - 本地 `packages/voxcpm_pytorch/server.py` 的 `generate()` **复刻同一签名**
     （`text` / `control_instruction` / `reference_audio` / `ultimate` / `prompt_text` /
     `cfg_value` / `normalize` / `ref_denoise` / `dit_steps` / `_`），
     返回 `(48000, np.ndarray)`，通过 `gr.Interface` + `mount_gradio_app` 暴露。

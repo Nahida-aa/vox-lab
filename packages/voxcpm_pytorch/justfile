@@ -1,0 +1,18 @@
+# voxcpm_pytorch: VoxCPM 的 PyTorch 实验与本地服务。
+# 实验目的见 docs/decisions/0011-voxcpm-gpu-backend-outlook.md。
+
+# 合成一段文本
+generate text="这是一段用于测试的中文语音。":
+    uv run --project packages/voxcpm_pytorch python -m voxcpm_pytorch.cli generate --text "{{text}}"
+
+# 分段耗时：LM / residual LM / CFM / VAE
+profile text="这是一段用于测试的中文语音。":
+    uv run --project packages/voxcpm_pytorch python -m voxcpm_pytorch.cli profile --text "{{text}}"
+
+# 精度实验：bf16 vs fp32（可加 fp16）
+dtype text="这是一段用于测试的中文语音。":
+    uv run --project packages/voxcpm_pytorch python -m voxcpm_pytorch.cli dtype --text "{{text}}" --dtypes bf16 fp32
+
+# 本地 Gradio 服务（复刻云端 /generate 签名）
+server:
+    uv run --project packages/voxcpm_pytorch python -m voxcpm_pytorch.server --port 19112

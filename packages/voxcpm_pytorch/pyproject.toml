@@ -1,7 +1,7 @@
 [project]
-name = "voxcpm-torch-server"
+name = "voxcpm-pytorch"
 version = "0.1.0"
-description = "Local VoxCPM TTS Gradio server"
+description = "VoxCPM PyTorch experiments (dtype/profiling) + local Gradio server"
 requires-python = ">=3.12"
 dependencies = [
     "servers-py",
@@ -9,6 +9,7 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "numpy",
+    "soundfile",
 ]
 
 [tool.setuptools.packages.find]

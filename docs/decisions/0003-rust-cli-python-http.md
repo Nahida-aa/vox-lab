@@ -24,7 +24,7 @@ date: 2026-11-14
   - `voxcpm-cloud`、`vox-core`、`voice-cloning`、`util` 均为库。
   - **Rust 侧不起 HTTP 服务**，没有 axum 服务器，`/v1/infer` 等端点不存在。
 - **Python 侧**（uv workspace）才起 HTTP 服务：
-  - `packages/voxcpm_torch_server`：FastAPI + Gradio（复刻云端 `/generate`），
+  - `packages/voxcpm_pytorch`：FastAPI + Gradio（复刻云端 `/generate`），
     另有 `/status`、`/load-model`、`/unload-model` 与 mDNS 发现，默认端口 19112。
   - `packages/demucs_pytorch`：PyTorch 参考实现（校验 `demucs-tch`）。
     （原 `demucs_torch_server` HTTP 服务已由此取代。）
