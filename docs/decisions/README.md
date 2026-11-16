@@ -22,6 +22,7 @@
 | [0005](./0005-gradio-rs-client.md) | Rust 客户端选用 `gradio` crate v0.4.2（废弃自研） | accepted |
 | [0006](./0006-submodules-and-runtimes.md) | 子模块与运行时依赖选型 | accepted |
 | [0007](./0007-config-conventions.md) | 配置约定（模板入库、加载器未实现） | accepted |
+| [0008](./0008-demucs-tch-standalone-workspace.md) | demucs-tch 独立 workspace（避开 torch-sys links 冲突） | accepted |
 
 ## 状态取值
 

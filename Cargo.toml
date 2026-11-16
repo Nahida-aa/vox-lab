@@ -1,10 +1,19 @@
 [workspace]
 members = ["packages/voice-cloning","packages/vox-core","packages/voxcpm-cloud",
     "packages/demucs-burn",
-    "packages/voxcpm-burn",
     "submodule/voxcpm-rs",
     "submodule/voxcpm-rs/vendor/patched/burn-cubecl",
     "submodule/voxcpm-rs/vendor/patched/cubecl-spirv", "packages/util",
+]
+
+# packages/voxcpm-burn 移出主 workspace（当前无需编译）。
+# packages/demucs-tch 为独立 workspace（见其自身 Cargo.toml 的 [workspace]），
+# 不列入 members：它用 tch-rs 0.27 / torch-sys 0.27，与主 workspace 里
+# burn 0.20.1 的 burn-tch → torch-sys 0.22 存在 links = "tch" 冲突，
+# 二者不能进同一依赖图。独立后各自使用各自的 target/ 与 Cargo.lock。
+exclude = [
+    "packages/voxcpm-burn",
+    "packages/demucs-tch",
 ]
 
 [workspace.dependencies]
