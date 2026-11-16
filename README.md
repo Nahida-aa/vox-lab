@@ -1,8 +1,8 @@
 # vox-lab
 
 语音处理多后端实验与 Rust 化工作区：围绕 **ASR（whisper）**、**音源分离（demucs）**、
-**TTS / VC（VoxCPM、CosyVoice）** 三条链路，对比 Rust（Burn / GGML / ONNX Runtime）、
-PyTorch 与云端运行时在不同设备（CPU / Vulkan / CUDA / ROCm …）上的推理表现，
+**TTS / VC（VoxCPM、CosyVoice）** 三条链路，对比 Rust（Burn / GGML / ONNX Runtime /
+自研 WGSL 内核）、PyTorch 与云端运行时在不同设备（CPU / Vulkan / CUDA / ROCm …）上的推理表现，
 并沉淀基准测试、问题排查记录与可发布的预构建资产。
 
 架构与实现决策集中记录在 **[`docs/decisions/`](./docs/decisions/README.md)**
@@ -22,18 +22,27 @@ PyTorch 与云端运行时在不同设备（CPU / Vulkan / CUDA / ROCm …）上
 ## 设计原则（实际落地形态）
 
 1. **不做中央调度层**：各实现可独立调用，互不编排。Rust 侧是
-   「公共逻辑库 + 每个后端一个独立 CLI 二进制」——如 `voxcpm-burn` 产出
-   `voxcpm-burn-cpu` / `-vulkan` / `-wgpu` / `-tch`，`demucs-burn` 另有
-   `-cuda` / `-rocm`；**它们不起 HTTP 服务**。HTTP 服务只在 Python 侧
+   「公共逻辑库 + 每个后端一个独立 CLI 二进制」——`demucs-burn` 产出
+   `-tch` / `-wgpu`（另有未发布的 `-cuda` / `-rocm`）；`voxcpm-burn` 曾按
+   `cpu` / `vulkan` / `wgpu` / `tch` 切分，现移出主 workspace 暂不构建
+   （见 [ADR 0008](./docs/decisions/0008-demucs-tch-standalone-workspace.md)）。
+   **它们不起 HTTP 服务**。HTTP 服务只在 Python 侧
    （`voxcpm_torch_server`，FastAPI + Gradio）。`packages/demucs_pytorch/` 是
    PyTorch 参考实现，仅用于校验 `demucs-tch`，不是服务。
-2. **Device 在编译期选定，不在运行时切换**：每个后端由 Cargo feature 门控
-   （`cpu` / `wgpu` / `vulkan` / `tch` / `cuda` / `rocm`），一个二进制绑定一个
-   Burn backend。不存在「同一 Runtime 运行时切 device」的正交关系，也没有
-   承载该选择的 `RuntimeConfig` 类型。
+   音源分离另有两条不依赖 Burn 的路径：`demucs-tch`（tch-rs / libtorch）与
+   `demucs-wgpu`（自研 WGSL kernel + Vulkan，封装 `submodule/demucs-wgpu`），
+   见 [ADR 0009](./docs/decisions/0009-demucs-tch-backend-builds.md)、
+   [0010](./docs/decisions/0010-demucs-wgpu-backend.md)。
+2. **Device 由构建产物决定，不暴露运行时开关**：Burn 侧每个后端由 Cargo feature
+   门控（`cpu` / `wgpu` / `vulkan` / `tch` / `cuda` / `rocm`），一个二进制绑定一个
+   Burn backend；tch 侧没有 feature，能力由构建时链接的 libtorch 决定（CPU 版恒为
+   CPU，CUDA/ROCm 版自动用 GPU）；wgpu 侧按 adapter 自动选。CLI 都没有 `--device`
+   参数。不存在「同一 Runtime 运行时切 device」的正交关系，也没有承载该选择的
+   `RuntimeConfig` 类型。
 3. **按后端分别落地、分别发版**：各后端独立基准测试（`packages/benchmark/`）
    与独立预构建资产（`.github/workflows/release-*.yml`），按实测结论选默认后端
-   （如 demucs-burn 当前生产默认 `tch`，见 `packages/demucs-burn/docs/README.md`）。
+   （音源分离：CPU 走 `demucs-tch`，GPU 走 `demucs-wgpu`；Burn 侧历史基线见
+   `packages/demucs-burn/docs/README.md`）。
 4. **对齐云端的 Gradio 契约**：本地 `voxcpm_torch_server` 复刻
    `voxcpm.modelbest.cn` 的 `/generate` 签名，客户端按同一 Gradio 协议对接，
    本地与云端靠「同签名」互换，而非另立一套标准。
@@ -111,6 +120,7 @@ PyTorch 与云端运行时在不同设备（CPU / Vulkan / CUDA / ROCm …）上
 | `submodule/demucs-rs` | Rust 侧 Demucs 分离实现 | 分离 |
 | `submodule/demucs` | 官方 Demucs（PyTorch，`adefossez/demucs`） | 分离 / 权重与参考 |
 | `submodule/demucs.cpp` | GGML / C++ Demucs 推理 | 分离 / GGML 基准 |
+| `submodule/demucs-wgpu` | 纯 Rust + wgpu 的 HTDemucs（自研 WGSL kernel，CPU/Vulkan 双后端） | 分离 / GPU（fork: Nahida-aa） |
 | `submodule/whisper.cpp` | whisper.cpp（钉在 LocalDub 同 commit，Vulkan 后端） | ASR |
 | `submodule/CosyVoice` | 官方 CosyVoice（CosyVoice2/3） | TTS / VC 基准 |
 
@@ -124,14 +134,28 @@ Cargo workspace 成员见根 `Cargo.toml`；`packages/` 下按职责分组：
 | 分组 | 目录 | 说明 |
 |------|------|------|
 | Rust 运行时 | `voxcpm-burn`、`demucs-burn`、`voxcpm-cloud`、`vox-core`、`voice-cloning`、`util` | Burn / 云端对接 / 公共 wav·工具库 |
+| Rust 分离后端 | `demucs-tch`（tch-rs CPU，可构建 cuda/rocm 变体）、`demucs-burn-tch`（Burn 0.21 对比基线）、`demucs-wgpu`（自研 WGSL / Vulkan） | 均不依赖主 workspace 的 Burn 版本，各自独立 workspace |
 | Python 服务/工具 | `voxcpm_torch_server`、`demucs_pytorch`、`servers_py` | uv workspace；`demucs_pytorch` 为校验 `demucs-tch` 的 PyTorch 参考实现 |
 | 基准 | `benchmark/`（asr / ocr / separate / VC 等子目录与 `results/FINDINGS.md`） | 各后端 RTF / CER / 内存实测 |
 | 研究记录 | `research/`（ROCm hang、模型加载耗时、ONNX NaN、ASR 回归等） | 问题排查与结论沉淀 |
 | 经验文档 | `packages/demucs-burn/docs/` | cpu fallback、conv patch、权重来源、后端基准 |
 
-CI 发布见 `.github/workflows/`：`release-{whisper,demucs}-{linux,windows}.yml`，
-产出 `whisper-vulkan`、`demucs-burn-{tch,wgpu}` 的 Linux / Windows 预构建资产
-（Windows 侧含 Vulkan SDK 与 libtorch dll 打包）。
+音源分离各后端实测（同一段 33.878 s 音轨，`htdemucs`，RTF = 处理时间 / 音频时长，越小越快）：
+
+| 路径 | 设备 | RTF | 备注 |
+|------|------|-----|------|
+| `demucs-wgpu` | Vulkan (780M) | **0.11** | 自研 WGSL kernel；`htdemucs_ft` 为 0.45 |
+| `demucs-tch` | CPU (libtorch) | 1.03 | `htdemucs_ft` 为 4.74 |
+| `demucs-wgpu` | CPU (host 路径) | 1.36 | 同一份代码的对比基线 |
+| PyTorch + ROCm | 780M | 0.64 | 需 `HSA_OVERRIDE_GFX_VERSION`，两次运行结果不一致，不作生产 |
+
+数值一致性与取舍见 [ADR 0010](./docs/decisions/0010-demucs-wgpu-backend.md)。
+
+CI 发布见 `.github/workflows/`：`release-{whisper,demucs}-{linux,windows}.yml` 产出
+`whisper-vulkan`、`demucs-burn-{tch,wgpu}`；`release-demucs-tch-{linux,windows}.yml`
+按 backend 矩阵产出 `demucs-tch-{cpu,cuda,rocm}`（Windows 无 rocm；CPU 包平铺
+libtorch，GPU 包只含 exe，libtorch 由使用者自备）。`demucs-wgpu` 目前仅在本地
+构建（`packages/demucs-wgpu/justfile`），尚未接入发布流水线。
 
 ## 参考实现与实测结论
 
@@ -184,11 +208,14 @@ vox-lab/
 ├── Cargo.toml                    # Rust workspace（成员见文件内 members）
 ├── pyproject.toml                # uv workspace（torch servers + servers_py）
 ├── requirements-pytorch-cu128.txt
-├── submodule/                    # 7 个上游子模块，见「子模块」表
+├── submodule/                    # 8 个上游子模块，见「子模块」表
 ├── packages/
 │   ├── vox-core/                 # 公共 wav 读写 / 重采样等工具
 │   ├── voxcpm-burn/              # VoxCPM Burn 运行时
 │   ├── demucs-burn/              # Demucs Burn 运行时（tch / wgpu）
+│   ├── demucs-tch/               # Demucs tch-rs 运行时（独立 workspace，cpu/cuda/rocm）
+│   ├── demucs-burn-tch/          # Burn 0.21 + burn-tch 性能对比基线
+│   ├── demucs-wgpu/              # 自研 WGSL kernel 的 Vulkan 推理封装
 │   ├── voxcpm-cloud/             # 云端 Gradio 契约客户端（TS + Rust）
 │   ├── voice-cloning/            # 声音克隆相关
 │   ├── util/                     # cargo_build_cmd / cargo_build_bin 等构建辅助
@@ -283,13 +310,14 @@ settings.json         # 个人配置（差异大，忽略）
 
 ## 当前状态
 
-- [x] 7 个子模块引入（VoxCPM / voxcpm-rs / Demucs 系 / whisper.cpp / CosyVoice）
+- [x] 8 个子模块引入（VoxCPM / voxcpm-rs / Demucs 系 / demucs-wgpu / whisper.cpp / CosyVoice）
 - [x] Rust workspace + 多个 Rust 运行时 crate（`voxcpm-burn` / `demucs-burn` / `voxcpm-cloud` / `vox-core` 等）
 - [x] uv workspace + 本地 PyTorch / Gradio 服务（`*_torch_server`、`servers_py`）
 - [x] 云端与本地统一的 Gradio `/generate` 契约实测、文档化（`voxcpm-cloud` + `voxcpm_torch_server`）
 - [x] 配置约定落地：`.gitignore` / `settings.example.json` / `.env.example`
 - [x] 基准测试与研究记录沉淀（`benchmark/` + `research/`）
-- [x] Linux / Windows 预构建资产发布（whisper-vulkan、demucs-burn tch/wgpu）
+- [x] Linux / Windows 预构建资产发布（whisper-vulkan、demucs-burn tch/wgpu、demucs-tch cpu）
+- [x] 音源分离 GPU 路径落地：自研 WGSL kernel（Vulkan），htdemucs 3.6 s / 34 s 音频
 - [x] LocalDub 侧主要能力的迁入（详见 ROADMAP「移植」章节）
 - [ ] LocalDub 侧 `steps/tts/mod.rs` 依赖切换与 `packages/voxlab` 退役（跨仓库收尾）
 
