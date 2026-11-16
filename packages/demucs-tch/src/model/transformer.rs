@@ -256,8 +256,10 @@ impl CrossDomainTransformer {
         // 3. Norm FIRST, then add positional embeddings (Python order)
         let freq = self.norm_in.forward(&freq);
         let time = self.norm_in_t.forward(&time);
-        let freq = freq + create_2d_sin_embed(d as usize, freq_bins as usize, time_f as usize);
-        let mut time = time + create_sin_embed(time_t as usize, d as usize);
+        let device = freq.device();
+        let freq =
+            freq + create_2d_sin_embed(d as usize, freq_bins as usize, time_f as usize).to_device(device);
+        let mut time = time + create_sin_embed(time_t as usize, d as usize).to_device(device);
 
         // 4. Transformer layers
         let mut freq = freq;

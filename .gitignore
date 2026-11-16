@@ -10,6 +10,7 @@ settings.jsonc
 # ── Rust ──
 /target
 **/target
+packages/demucs-tch/dist/
 Cargo.lock.bak
 
 # ── Node/TS ──

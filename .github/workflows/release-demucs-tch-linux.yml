@@ -1,18 +1,20 @@
 name: release-demucs-tch-linux
 
-# 手动触发: 构建 demucs-tch (tch-rs / libtorch CPU) 的 Linux
-# (x86_64-unknown-linux-gnu) 资产并上传到对应 GitHub Release。
+# 手动触发: 构建 demucs-tch 的 Linux (x86_64-unknown-linux-gnu) 三分支资产
+# 并上传到 demucs-tch-v0.1.0 release。
 #
-# 资产形态: zip, 因为 tch-rs 动态链 libtorch (torch-sys 的 download-libtorch 产物)。
-# zip 内 exe + libtorch .so 平铺, 解压目录即 bin dir
-# (Linux 需经 LD_LIBRARY_PATH=bin_dir 提供 libtorch)。
-# 命名: demucs-tch-x86_64-unknown-linux-gnu.zip, 与 Windows 形态一致。
+# 为什么是三个 job: tch 没有 cuda/rocm feature, torch-sys 在构建时探测
+# libtorch 目录里有没有 libtorch_cuda.so / libtorch_hip.so 决定链接哪套库
+# (build.rs:446 / :452)。一次 cargo build 只能得到一个后端, 因此按 backend 矩阵构建。
 #
-# 已知前提:
-#   - demucs-tch 是独立 workspace, 需在 packages/demucs-tch 目录下构建,
-#     产物在 packages/demucs-tch/target/release/ (不在根 target/)。
-#   - torch-sys 经 download-libtorch 拉官方 libtorch 预编译 (PyTorch 2.15), 无需本机装。
-#   - 冒烟仅验证 exe 可启动 (libtorch depends 齐全) + --model-dir 路径解析。
+# 资产:
+#   demucs-tch-cpu-x86_64-unknown-linux-gnu.zip   exe + libtorch cpu .so 平铺
+#   demucs-tch-cuda-...zip                       仅 exe (libtorch 太大, 需自备 CUDA 版)
+#   demucs-tch-rocm-...zip                       仅 exe (需自备 ROCm 版 libtorch)
+#
+# 版本约束: torch-sys 0.27 硬校验 PyTorch 2.15.0 (build.rs:13,166)。
+# download.pytorch.org 目前只发布到 2.14.1 的 cuda/rocm 预编译包, 所以
+# cuda/rocm job 先探测 2.15.0 的 URL: 不存在则跳过 (不红), 发布后自动生效。
 
 on:
   workflow_dispatch:
@@ -31,6 +33,16 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: cpu
+            libtorch_url: ""
+          - backend: cuda
+            libtorch_url: "https://download.pytorch.org/libtorch/cu130/libtorch-shared-with-deps-2.15.0%2Bcu130.zip"
+          - backend: rocm
+            libtorch_url: "https://download.pytorch.org/libtorch/rocm7.2/libtorch-shared-with-deps-2.15.0%2Brocm7.2.zip"
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -41,67 +53,97 @@ jobs:
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: build release bin
+      - name: check libtorch availability
+        id: avail
         shell: bash
-        working-directory: packages/demucs-tch
         run: |
           set -euo pipefail
-          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
-            cargo build --release --bin demucs-tch
+          url="${{ matrix.libtorch_url }}"
+          if [ -z "$url" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "cpu backend: torch-sys download-libtorch 处理"
+            exit 0
           fi
-          ls -la target/release/demucs-tch 2>/dev/null || true
+          code=$(curl -sIL -o /dev/null -w '%{http_code}' --retry 3 --max-time 60 "$url")
+          if [ "$code" = "200" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "libtorch 可用: $url"
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::${{ matrix.backend }} 跳过: 2.15.0 预编译 libtorch 尚未发布 ($code)"
+          fi
 
-      - name: smoke test (可启动, libtorch depends 齐全)
+      - name: fetch libtorch
+        if: steps.avail.outputs.skip != 'true' && matrix.libtorch_url != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --retry 3 -o "$RUNNER_TEMP/libtorch.zip" "${{ matrix.libtorch_url }}"
+          mkdir -p "$RUNNER_TEMP/libtorch"
+          unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP/libtorch"
+          echo "LIBTORCH=$RUNNER_TEMP/libtorch/libtorch" >> "$GITHUB_ENV"
+
+      - name: build release bin
+        if: steps.avail.outputs.skip != 'true'
         shell: bash
         working-directory: packages/demucs-tch
         run: |
           set -euo pipefail
-          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
-            libtorch_dir=$(find target/release/build -maxdepth 5 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
-            [ -n "$libtorch_dir" ] || { echo "libtorch dir not found"; exit 1; }
-            LD_LIBRARY_PATH="$libtorch_dir" ./target/release/demucs-tch --help >/dev/null
+          cargo build --release --bin demucs-tch --target-dir "target/${{ matrix.backend }}"
+          ls -la "target/${{ matrix.backend }}/release/demucs-tch"
+
+      - name: smoke test (可启动)
+        if: steps.avail.outputs.skip != 'true'
+        shell: bash
+        working-directory: packages/demucs-tch
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.backend }}" = "cpu" ]; then
+            lib_dir=$(find "target/${{ matrix.backend }}/release/build" -maxdepth 6 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+          else
+            lib_dir="$LIBTORCH/lib"
           fi
-          echo "smoke ok"
+          [ -n "$lib_dir" ] || { echo "libtorch dir not found"; exit 1; }
+          LD_LIBRARY_PATH="$lib_dir" "./target/${{ matrix.backend }}/release/demucs-tch" --help > /dev/null
+          echo "smoke ok (${{ matrix.backend }})"
 
       - name: package zip + sha256
+        if: steps.avail.outputs.skip != 'true'
         shell: bash
         working-directory: packages/demucs-tch
         run: |
           set -euo pipefail
           out_dir="$RUNNER_TEMP/out"
           mkdir -p "$out_dir"
-          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
-            staging="$out_dir/demucs-tch"
-            mkdir -p "$staging"
-            cp target/release/demucs-tch "$staging/"
-            # libtorch .so 平铺进 zip (与 exe 同目录, 解压后 LD_LIBRARY_PATH=bin_dir 可用)
-            libtorch_dir=$(find target/release/build -maxdepth 5 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
-            cp "$libtorch_dir"/*.so* "$staging/" 2>/dev/null || true
-            # zip 内文件平铺到根 (解压目录即 bin dir)
-            pushd "$staging" >/dev/null
-            asset="$out_dir/demucs-tch-x86_64-unknown-linux-gnu.zip"
-            zip -q -r "$asset" .
-            popd >/dev/null
-            hash=$(sha256sum "$asset" | awk '{print $1}')
-            echo "demucs-tch-x86_64-unknown-linux-gnu.zip  $hash  $(stat -c%s "$asset")" | tee -a "$out_dir/sha256.txt"
+          staging="$out_dir/demucs-tch-${{ matrix.backend }}"
+          mkdir -p "$staging"
+          cp "target/${{ matrix.backend }}/release/demucs-tch" "$staging/"
+          # CPU 变体平铺 libtorch .so；cuda/rocm 变体只发 exe（libtorch 体积过大，需自备）
+          if [ "${{ matrix.backend }}" = "cpu" ]; then
+            lib_dir=$(find "target/${{ matrix.backend }}/release/build" -maxdepth 6 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+            cp "$lib_dir"/*.so* "$staging/" 2>/dev/null || true
           fi
+          pushd "$staging" > /dev/null
+          asset="$out_dir/demucs-tch-${{ matrix.backend }}-x86_64-unknown-linux-gnu.zip"
+          zip -q -r "$asset" .
+          popd > /dev/null
+          hash=$(sha256sum "$asset" | awk '{print $1}')
+          echo "demucs-tch-${{ matrix.backend }}-x86_64-unknown-linux-gnu.zip  $hash  $(stat -c%s "$asset")" | tee -a "$out_dir/sha256.txt"
 
       - name: create release (幂等)
+        if: steps.avail.outputs.skip != 'true'
         shell: bash
         run: |
-          gh release create demucs-tch-v0.1.0 --title "demucs-tch v0.1.0" --notes "demucs-tch Linux 资产 (tch-rs / libtorch CPU, zip 平铺)" 2>/dev/null || echo "release 已存在, 继续"
+          gh release create demucs-tch-v0.1.0 --title "demucs-tch v0.1.0" --notes "demucs-tch 资产 (cpu / cuda / rocm 三分支)" 2>/dev/null || echo "release 已存在, 继续"
 
       - name: upload asset to release
+        if: steps.avail.outputs.skip != 'true' && github.event.inputs.upload != 'false'
         shell: bash
         run: |
           set -euo pipefail
-          out_dir="$RUNNER_TEMP/out"
-          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
-            gh release upload demucs-tch-v0.1.0 "$out_dir/demucs-tch-x86_64-unknown-linux-gnu.zip" --clobber
-          fi
-          echo "upload done"
+          gh release upload demucs-tch-v0.1.0 "$RUNNER_TEMP/out/demucs-tch-${{ matrix.backend }}-x86_64-unknown-linux-gnu.zip" --clobber
 
       - name: print sha256
+        if: steps.avail.outputs.skip != 'true'
         shell: bash
-        run: |
-          cat "$RUNNER_TEMP/out/sha256.txt"
+        run: cat "$RUNNER_TEMP/out/sha256.txt"

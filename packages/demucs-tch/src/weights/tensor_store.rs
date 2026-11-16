@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use half::f16;
 use safetensors::{Dtype, SafeTensors};
+use tch::Device;
 
 use super::WeightError;
 
@@ -16,6 +17,7 @@ pub struct StoredTensor {
 /// PyTorch-style names (with the signature prefix stripped).
 pub struct TensorStore {
     tensors: HashMap<String, StoredTensor>,
+    device: Device,
 }
 
 impl TensorStore {
@@ -23,7 +25,11 @@ impl TensorStore {
     /// with the given `signature` prefix (e.g. "955717e8").
     /// The signature prefix and trailing dot are stripped from the key names.
     /// F16/BF16 tensors are converted to f32.
-    pub fn from_bytes(data: &[u8], signature: &str) -> Result<Self, WeightError> {
+    pub fn from_bytes(
+        data: &[u8],
+        signature: &str,
+        device: Device,
+    ) -> Result<Self, WeightError> {
         let st = SafeTensors::deserialize(data)
             .map_err(|e| WeightError::SafetensorsError(e.to_string()))?;
 
@@ -82,7 +88,12 @@ impl TensorStore {
             return Err(WeightError::NoTensorsFound(signature.to_string()));
         }
 
-        Ok(Self { tensors })
+        Ok(Self { tensors, device })
+    }
+
+    /// Target device for tensors materialised from this store.
+    pub fn device(&self) -> Device {
+        self.device
     }
 
     /// Take a tensor by PyTorch key name, removing it from the store.
@@ -254,7 +265,7 @@ mod tests {
             ("other.ignored", &[1], &[99.0]),
         ]);
 
-        let mut store = TensorStore::from_bytes(&data, "sig1").unwrap();
+        let mut store = TensorStore::from_bytes(&data, "sig1", Device::Cpu).unwrap();
         assert_eq!(store.len(), 2);
 
         let w = store.take("layer.weight").unwrap();
@@ -271,14 +282,14 @@ mod tests {
     #[test]
     fn missing_key_error() {
         let data = make_safetensors(&[("sig.x", &[1], &[1.0])]);
-        let mut store = TensorStore::from_bytes(&data, "sig").unwrap();
+        let mut store = TensorStore::from_bytes(&data, "sig", Device::Cpu).unwrap();
         assert!(store.take("nonexistent").is_err());
     }
 
     #[test]
     fn no_matching_signature_error() {
         let data = make_safetensors(&[("sig.x", &[1], &[1.0])]);
-        assert!(TensorStore::from_bytes(&data, "other").is_err());
+        assert!(TensorStore::from_bytes(&data, "other", Device::Cpu).is_err());
     }
 
     #[test]

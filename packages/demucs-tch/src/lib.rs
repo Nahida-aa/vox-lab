@@ -141,12 +141,16 @@ pub struct Demucs {
 
 impl Demucs {
     pub fn from_bytes(info: &'static ModelInfo, bytes: &[u8]) -> Result<Self> {
-        let models = load_model(bytes, info)
+        // The linked libtorch decides what is available: CPU-only builds always
+        // resolve to Cpu, CUDA/ROCm builds (torch-sys links torch_cuda/torch_hip
+        // based on the libtorch that was found at build time) get Cuda(0).
+        let device = Device::cuda_if_available();
+        let models = load_model(bytes, info, device)
             .map_err(|e| anyhow::anyhow!("weight load failed: {}", e))?;
         Ok(Self {
             info,
             models,
-            device: Device::Cpu,
+            device,
         })
     }
 
@@ -312,7 +316,7 @@ fn build_time_tensor(left: &[f32], right: &[f32], padded_len: usize, device: Dev
 
 fn tensor_to_vec(t: &Tensor) -> Vec<f32> {
     let n: i64 = t.size().iter().product();
-    let flat = t.reshape([n]);
+    let flat = t.reshape([n]).to_device(Device::Cpu);
     Vec::<f32>::try_from(&flat).unwrap_or_else(|_| {
         // Fallback: copy through f64 (tch 0.27 implements From<&Tensor> for Vec<f64>).
         Vec::<f64>::try_from(&flat)
@@ -484,6 +488,7 @@ pub fn run(cli: Cli) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("model not cached ({}): {}", provider_path(info, &model_dir), e))?;
     let demucs = Demucs::from_bytes(info, &bytes)?;
     let load_secs = t_load.elapsed().as_secs_f64();
+    eprintln!("Device: {:?}", demucs.device);
     println!("Benchmark-Load-Time: {:.3}", load_secs);
 
     if cli.warmup {

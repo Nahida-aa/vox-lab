@@ -4,7 +4,7 @@
 //! layouts: NO Linear transpose, NO MHA `in_proj` split. tch-rs wraps libtorch,
 //! so conv/linear/norm weights are used exactly as stored in the file.
 
-use tch::{Kind, Tensor};
+use tch::{Device, Kind, Tensor};
 
 use crate::model::conv::{
     DConv, DConvLayer, HDecLayer, HEncLayer, TDecLayer, TEncLayer, DCONV_LAYERS,
@@ -20,19 +20,22 @@ use crate::weights::tensor_store::TensorStore;
 use crate::weights::WeightError;
 use crate::T_LAYERS;
 
-fn st_to_tensor(t: crate::weights::tensor_store::StoredTensor) -> Tensor {
+fn st_to_tensor(t: crate::weights::tensor_store::StoredTensor, device: Device) -> Tensor {
     let shape: Vec<i64> = t.shape.iter().map(|&d| d as i64).collect();
     Tensor::from_slice(&t.data)
         .reshape(&shape)
         .to_kind(Kind::Float)
+        .to_device(device)
 }
 
 fn take_tensor(store: &mut TensorStore, key: &str) -> Result<Tensor, WeightError> {
-    Ok(st_to_tensor(store.take(key)?))
+    let device = store.device();
+    Ok(st_to_tensor(store.take(key)?, device))
 }
 
 fn maybe_take_tensor(store: &mut TensorStore, key: &str) -> Option<Tensor> {
-    store.take(key).ok().map(st_to_tensor)
+    let device = store.device();
+    store.take(key).ok().map(|t| st_to_tensor(t, device))
 }
 
 // ─── Primitive loaders (PyTorch layout, no transformation) ─────────────────
@@ -366,12 +369,16 @@ fn load_htdemucs_from_store(
 
 /// Load one or more HTDemucs models from safetensors bytes.
 /// `htdemucs_ft` has 4 sub-models (one per stem) in a single file.
-pub fn load_model(bytes: &[u8], info: &ModelInfo) -> Result<Vec<HTDemucs>, WeightError> {
+pub fn load_model(
+    bytes: &[u8],
+    info: &ModelInfo,
+    device: Device,
+) -> Result<Vec<HTDemucs>, WeightError> {
     let hp = HyperParameters::from_model_info(info);
     let mut models = Vec::new();
 
     for sig in info.signatures {
-        let mut store = TensorStore::from_bytes(bytes, sig)?;
+        let mut store = TensorStore::from_bytes(bytes, sig, device)?;
         let model = load_htdemucs_from_store(&mut store, &hp)?;
         let remaining = store.remaining_keys();
         if !remaining.is_empty() {

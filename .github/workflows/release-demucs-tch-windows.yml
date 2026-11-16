@@ -1,19 +1,17 @@
 name: release-demucs-tch-windows
 
-# 手动触发: 构建 demucs-tch (tch-rs / libtorch CPU) 的 Windows
-# (x86_64-pc-windows-msvc) 资产并上传到对应 GitHub Release。
+# 手动触发: 构建 demucs-tch 的 Windows (x86_64-pc-windows-msvc) cpu/cuda 资产
+# 并上传到 demucs-tch-v0.1.0 release。
 #
-# 资产形态: zip, tch-rs 动态链 libtorch (torch-sys 的 download-libtorch 产物),
-# zip 内 exe + libtorch dll 平铺 (解压目录即 bin dir)。
-# 命名: demucs-tch-x86_64-pc-windows-msvc.zip (与 linux 形态一致)。
+# 为什么按 backend 拆 job: tch 没有 cuda feature, torch-sys 构建时探测 libtorch
+# 目录里有没有 torch_cuda.dll 决定链接哪套库 (build.rs:446)。一次构建只能一个后端。
 #
-# 已知前提:
-#   - torch-sys 经 download-libtorch 拉官方 Windows libtorch (dll, PyTorch 2.15)。
-#   - 额外打包 MSVC runtime dll (msvcp140 等), 目标机可能缺失。
-#   - 冒烟仅验证 exe 可启动 (--help exit 0): runner 无 GPU。
+# 资产:
+#   demucs-tch-cpu-x86_64-pc-windows-msvc.zip   exe + libtorch dll 平铺
+#   demucs-tch-cuda-...zip                      仅 exe (libtorch cuda 体积过大, 需自备)
 #
-# 注意: demucs-tch 是独立 workspace (不依赖主 workspace 的 Burn),
-# 因此需在 packages/demucs-tch 目录下执行 cargo build。
+# 版本约束: torch-sys 0.27 硬校验 PyTorch 2.15.0。Windows 的 2.15.0 cuda
+# 预编译包若尚未发布, 该 job 跳过 (不红), 发布后自动生效。
 
 on:
   workflow_dispatch:
@@ -32,6 +30,14 @@ env:
 jobs:
   build:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: cpu
+            libtorch_url: ""
+          - backend: cuda
+            libtorch_url: "https://download.pytorch.org/libtorch/cu130/libtorch-win-shared-with-deps-2.15.0%2Bcu130.zip"
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -42,57 +48,97 @@ jobs:
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: build release bin
+      - name: check libtorch availability
+        id: avail
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
-            cargo build --release --bin demucs-tch --manifest-path packages/demucs-tch/Cargo.toml
+          url="${{ matrix.libtorch_url }}"
+          if [ -z "$url" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          ls -la packages/demucs-tch/target/release/demucs-tch.exe 2>/dev/null || true
+          code=$(curl -sIL -o /dev/null -w '%{http_code}' --retry 3 --max-time 60 "$url")
+          if [ "$code" = "200" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::${{ matrix.backend }} 跳过: 2.15.0 Windows libtorch 尚未发布 ($code)"
+          fi
 
-      - name: smoke test (可启动, libtorch depends 齐全)
+      - name: fetch libtorch
+        if: steps.avail.outputs.skip != 'true' && matrix.libtorch_url != ''
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
-            libtorch_dir=$(find packages/demucs-tch/target/release/build -maxdepth 6 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
-            [ -n "$libtorch_dir" ] || { echo "libtorch dir not found"; exit 1; }
-            PATH="$libtorch_dir:$PATH" ./packages/demucs-tch/target/release/demucs-tch.exe --help >/dev/null
+          curl -L --retry 3 -o "$RUNNER_TEMP/libtorch.zip" "${{ matrix.libtorch_url }}"
+          mkdir -p "$RUNNER_TEMP/libtorch"
+          unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP/libtorch"
+          echo "LIBTORCH=$RUNNER_TEMP/libtorch/libtorch" >> "$GITHUB_ENV"
+
+      - name: build release bin
+        if: steps.avail.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --bin demucs-tch \
+            --manifest-path packages/demucs-tch/Cargo.toml \
+            --target-dir "packages/demucs-tch/target/${{ matrix.backend }}"
+          ls -la "packages/demucs-tch/target/${{ matrix.backend }}/release/demucs-tch.exe"
+
+      - name: smoke test (可启动)
+        if: steps.avail.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.backend }}" = "cpu" ]; then
+            lib_dir=$(find "packages/demucs-tch/target/${{ matrix.backend }}/release/build" -maxdepth 6 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+          else
+            lib_dir="$LIBTORCH/lib"
           fi
-          echo "smoke ok"
+          [ -n "$lib_dir" ] || { echo "libtorch dir not found"; exit 1; }
+          PATH="$lib_dir:$PATH" "packages/demucs-tch/target/${{ matrix.backend }}/release/demucs-tch.exe" --help > /dev/null
+          echo "smoke ok (${{ matrix.backend }})"
 
       - name: package zip + sha256
+        if: steps.avail.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
           out_dir="$RUNNER_TEMP/out"
           mkdir -p "$out_dir"
-          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
-            staging="$out_dir/demucs-tch"
-            mkdir -p "$staging"
-            cp packages/demucs-tch/target/release/demucs-tch.exe "$staging/"
-            # libtorch dll 平铺进 zip (与 exe 同目录) + MSVC runtime dll
-            libtorch_dir=$(find packages/demucs-tch/target/release/build -maxdepth 6 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
-            cp "$libtorch_dir"/*.dll "$staging/" 2>/dev/null || true
+          staging="$out_dir/demucs-tch-${{ matrix.backend }}"
+          mkdir -p "$staging"
+          cp "packages/demucs-tch/target/${{ matrix.backend }}/release/demucs-tch.exe" "$staging/"
+          if [ "${{ matrix.backend }}" = "cpu" ]; then
+            lib_dir=$(find "packages/demucs-tch/target/${{ matrix.backend }}/release/build" -maxdepth 6 -type d -path "*torch-sys-*/out/libtorch/libtorch/lib" | head -1)
+            cp "$lib_dir"/*.dll "$staging/" 2>/dev/null || true
             for dll in msvcp140.dll vcruntime140.dll vcruntime140_1.dll concrt140.dll; do
               cp "C:/Windows/System32/$dll" "$staging/" 2>/dev/null || true
             done
-            pushd "$staging" >/dev/null
-            asset="$out_dir/demucs-tch-x86_64-pc-windows-msvc.zip"
-            powershell -Command "Compress-Archive -Path * -DestinationPath '$asset'" 2>/dev/null || powershell -Command "Compress-Archive -LiteralPath (Get-ChildItem).FullName -DestinationPath '$asset'"
-            popd >/dev/null
-            hash=$(powershell -Command "(Get-FileHash '$asset' -Algorithm SHA256).Hash.ToLower()")
-            echo "demucs-tch-x86_64-pc-windows-msvc.zip  $hash  $(stat -c%s "$asset")" | tee -a "$out_dir/sha256.txt"
           fi
+          pushd "$staging" > /dev/null
+          asset="$out_dir/demucs-tch-${{ matrix.backend }}-x86_64-pc-windows-msvc.zip"
+          powershell -Command "Compress-Archive -Path * -DestinationPath '$asset'" 2>/dev/null || \
+            powershell -Command "Compress-Archive -LiteralPath (Get-ChildItem).FullName -DestinationPath '$asset'"
+          popd > /dev/null
+          hash=$(powershell -Command "(Get-FileHash '$asset' -Algorithm SHA256).Hash.ToLower()")
+          echo "demucs-tch-${{ matrix.backend }}-x86_64-pc-windows-msvc.zip  $hash  $(stat -c%s "$asset")" | tee -a "$out_dir/sha256.txt"
+
+      - name: create release (幂等)
+        if: steps.avail.outputs.skip != 'true'
+        shell: bash
+        run: |
+          gh release create demucs-tch-v0.1.0 --title "demucs-tch v0.1.0" --notes "demucs-tch 资产 (cpu / cuda / rocm 三分支)" 2>/dev/null || echo "release 已存在, 继续"
 
       - name: upload asset to release
+        if: steps.avail.outputs.skip != 'true' && github.event.inputs.upload != 'false'
         shell: bash
         run: |
           set -euo pipefail
-          out_dir="$RUNNER_TEMP/out"
-          gh release create demucs-tch-v0.1.0 --title "demucs-tch v0.1.0" --notes "demucs-tch Linux + Windows 资产 (tch-rs / libtorch CPU, zip 平铺)" 2>/dev/null || echo "release 已存在, 继续"
-          if [ "${{ github.event.inputs.upload }}" != "false" ]; then
-            gh release upload demucs-tch-v0.1.0 "$out_dir/demucs-tch-x86_64-pc-windows-msvc.zip" --clobber
-          fi
-          cat "$out_dir/sha256.txt"
+          gh release upload demucs-tch-v0.1.0 "$RUNNER_TEMP/out/demucs-tch-${{ matrix.backend }}-x86_64-pc-windows-msvc.zip" --clobber
+
+      - name: print sha256
+        if: steps.avail.outputs.skip != 'true'
+        shell: bash
+        run: cat "$RUNNER_TEMP/out/sha256.txt"

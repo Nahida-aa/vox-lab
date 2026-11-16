@@ -1,0 +1,43 @@
+# demucs-tch: 一份源码、三个后端变体 (cpu / cuda / rocm)。
+#
+# tch 没有 cuda/rocm feature —— torch-sys 在构建时探测 libtorch 目录里是否存在
+# libtorch_cuda.so / libtorch_hip.so 来决定链接哪套库（build.rs:446 / :452）。
+# 因此每个变体必须单独构建，产物各自对应一个 libtorch。
+#
+# 用法:
+#   just build-cpu
+#   LIBTORCH=/opt/libtorch-cu130 just build-cuda
+#   LIBTORCH=/opt/libtorch-rocm7.2 just build-rocm
+#
+# 产物: dist/demucs-tch-<backend>（未提交，仅本地/CI 打包用）
+
+dist_dir := "dist"
+bin := "demucs-tch"
+
+# CPU 变体：torch-sys 经 download-libtorch 拉官方 2.15.0+cpu
+build-cpu:
+    cargo build --release --bin {{bin}} --target-dir target/cpu
+    mkdir -p {{dist_dir}}
+    cp target/cpu/release/{{bin}} {{dist_dir}}/{{bin}}-cpu
+
+# CUDA 变体：LIBTORCH 必须指向 CUDA 版 libtorch
+build-cuda:
+    test -n "$LIBTORCH" || (echo "LIBTORCH must point at a CUDA libtorch" >&2; exit 1)
+    cargo build --release --bin {{bin}} --target-dir target/cuda
+    mkdir -p {{dist_dir}}
+    cp target/cuda/release/{{bin}} {{dist_dir}}/{{bin}}-cuda
+
+# ROCm 变体：LIBTORCH 必须指向 ROCm (HIP) 版 libtorch
+build-rocm:
+    test -n "$LIBTORCH" || (echo "LIBTORCH must point at a ROCm libtorch" >&2; exit 1)
+    cargo build --release --bin {{bin}} --target-dir target/rocm
+    mkdir -p {{dist_dir}}
+    cp target/rocm/release/{{bin}} {{dist_dir}}/{{bin}}-rocm
+
+# 冒烟：只验证二进制能启动，不推理
+check:
+    cargo check --workspace
+
+# 打印当前变体产物（存在才打印）
+list:
+    ls -l {{dist_dir}} 2>/dev/null || true
