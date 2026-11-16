@@ -1,0 +1,25 @@
+# demucs-wgpu: 自研 WGSL kernel 的 Vulkan 推理（封装 submodule/demucs-wgpu）。
+# 独立 workspace：与主 workspace 的 Burn / tch 依赖图无关。
+#
+# 用法:
+#   just build
+#   just run /path/to/input.wav /path/to/out htdemucs_ft
+
+bin := "demucs-wgpu"
+
+build:
+    cargo build --release --bin {{bin}}
+
+# 权重目录布局:
+#   <model_dir>/htdemucs.safetensors            (单模型，可带 signature 前缀)
+#   <model_dir>/htdemucs_ft/{htdemucs_ft.yaml, <sig>.safetensors x4}
+# 默认 model_dir = data/models/demucs（相对仓库根）
+run wav out model="htdemucs_ft" model_dir="data/models/demucs":
+    cargo run --release --bin {{bin}} -- \
+        --model {{model}} --model-dir {{model_dir}} {{wav}} {{out}}
+
+check:
+    cargo check --workspace
+
+test:
+    cargo test --release

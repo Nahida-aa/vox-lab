@@ -16,6 +16,8 @@ exclude = [
     "packages/voxcpm-burn",
     "packages/demucs-tch",
     "packages/demucs-burn-tch",
+    # demucs-wgpu：对 submodule/demucs-wgpu 的封装，自带 wgpu 依赖图与 Cargo.lock。
+    "packages/demucs-wgpu",
 ]
 
 [workspace.dependencies]

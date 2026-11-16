@@ -1,0 +1,29 @@
+# demucs-wgpu: vox-lab 侧对 submodule/demucs-wgpu 的薄封装。
+#
+# 自研 WGSL kernel 的 Vulkan 推理路径（见 ADR 0010）：不依赖 libtorch / ROCm 库，
+# 因而绕开了 rocBLAS/MIOpen 对 gfx1103 缺少内核的问题。
+#
+# 独立 workspace：本包只与 demucs-core 的 wgpu 依赖图相关，不与主 workspace
+# 的 Burn / tch 混在一起，产物与 Cargo.lock 独立。
+
+[workspace]
+
+[package]
+name = "demucs-wgpu"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "demucs_wgpu"
+path = "src/lib.rs"
+
+[[bin]]
+name = "demucs-wgpu"
+path = "src/bin/demucs-wgpu.rs"
+
+[dependencies]
+demucs-core = { path = "../../submodule/demucs-wgpu/crates/demucs-core" }
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+hound = "3"
+serde_json = "1"
