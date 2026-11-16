@@ -27,7 +27,9 @@ def _add_common(p: argparse.ArgumentParser) -> None:
 
 
 def cmd_generate(args: argparse.Namespace) -> None:
-    model = core.load_model(args.model_dir, device=args.device, optimize=args.optimize)
+    model = core.load_model(
+        args.model_dir, device=args.device, optimize=args.optimize, dtype=args.dtype
+    )
     wav, times = core.timed_generate(
         model, args.text, rounds=args.rounds,
         cfg_value=args.cfg, dit_steps=args.dit_steps, seed=args.seed, max_len=args.max_len,
@@ -56,6 +58,8 @@ def cmd_profile(args: argparse.Namespace) -> None:
     for name, ms, share in times.rows():
         print(f"{name:12} {ms:10.1f} {share:7.1f}%")
     print(f"{'total':12} {times.total_ms:10.1f}  (profiler self-time sum)")
+    unattr = times.wall_s * 1000.0 - times.total_ms
+    print(f"unattributed  {unattr:10.1f} {100.0 * unattr / (times.wall_s * 1000.0):7.1f}%  (not inside hooked leaves)")
     print(f"wall {times.wall_s:.2f}s  audio {times.audio_s:.2f}s  RTF {times.rtf:.2f}")
 
 
@@ -86,6 +90,7 @@ def main() -> None:
     g.add_argument("--out", default="tmp/voxcpm-pytorch/out.wav")
     g.add_argument("--rounds", type=int, default=1)
     g.add_argument("--optimize", action="store_true", help="启用 torch.compile（会干扰 profiling）")
+    g.add_argument("--dtype", default=None, help="覆盖权重精度：fp32 / bf16 / fp16")
     g.set_defaults(func=cmd_generate)
 
     pr = sub.add_parser("profile", help="按阶段聚合耗时（LM / residual LM / CFM / VAE）")

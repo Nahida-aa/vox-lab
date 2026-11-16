@@ -138,22 +138,6 @@ def load_model(
     )
     load_s = time.perf_counter() - t0
 
-    if dtype is not None:
-        import torch
-
-        torch_dtype = {
-            "bf16": torch.bfloat16,
-            "bfloat16": torch.bfloat16,
-            "fp16": torch.float16,
-            "float16": torch.float16,
-            "fp32": torch.float32,
-            "float32": torch.float32,
-        }.get(dtype.lower())
-        if torch_dtype is None:
-            raise ValueError(f"unsupported dtype: {dtype}")
-        # 上面的 config dir 已让 KV cache 用这个精度；这里再 cast 一次权重兜底。
-        model.tts_model.to(torch_dtype)
-
     model._vox_lab_load_s = load_s  # type: ignore[attr-defined]
     return model
 
@@ -242,31 +226,60 @@ def _classify(name: str) -> str:
 
 
 def profiled_generate(model, text: str, **kwargs) -> tuple[np.ndarray, StageTimes]:
-    """Run one generation under torch.profiler and aggregate by stage."""
+    """Time the top-level submodules of `tts_model` with forward hooks.
+
+    Kernel-level profiling (torch.profiler) can't tell which stage a kernel
+    belongs to: every aten::linear looks the same whether it came from the LM,
+    the DiT or the VAE. Hooking the direct children of `tts_model` gives a
+    disjoint partition, which is what the "where is the time going" question
+    actually needs.
+    """
     import torch
 
-    activities = [torch.profiler.ProfilerActivity.CPU]
+    root = model.tts_model
+    stacks: dict[str, list[float]] = {}
+    stages: dict[str, float] = {}
+    handles = []
+
+    def make_hooks(name: str):
+        def pre(_module, _inputs):
+            stacks.setdefault(name, []).append(time.perf_counter())
+
+        def post(_module, _inputs, _output):
+            started = stacks[name].pop()
+            stages[name] = stages.get(name, 0.0) + (time.perf_counter() - started)
+
+        return pre, post
+
+    # Hook leaves only, then attribute each leaf to its top-level group.
+    # Containers can be called through a submodule (e.g. audio_vae.decoder(x)),
+    # which never triggers a hook on the container itself, so hooking the
+    # top-level children alone leaves large blocks unattributed.
+    for child_name, module in root.named_modules():
+        if not child_name or next(module.children(), None) is not None:
+            continue
+        pre, post = make_hooks(child_name.split(".")[0])
+        handles.append(module.register_forward_pre_hook(pre))
+        handles.append(module.register_forward_hook(post))
+
     if torch.cuda.is_available():
-        activities.append(torch.profiler.ProfilerActivity.CUDA)
-
-    if torch.cuda.is_available() and "cuda" in str(getattr(model, "device", "")):
         torch.cuda.synchronize()
-
     t0 = time.perf_counter()
-    with torch.profiler.profile(activities=activities, record_shapes=False) as prof:
+    try:
         wav = generate(model, text, **kwargs)
+    finally:
+        for h in handles:
+            h.remove()
     wall_s = time.perf_counter() - t0
 
-    stages: dict[str, float] = {}
-    for evt in prof.key_averages():
-        ms = getattr(evt, "self_device_time_total", 0) or evt.self_cpu_time_total
-        if not ms:
-            continue
-        stage = _classify(evt.key)
-        stages[stage] = stages.get(stage, 0.0) + float(ms)
+    # tensors are still lazy on GPU; a second sync makes the wall time honest
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+    stage_ms = {name: ms * 1000.0 for name, ms in stages.items()}
     return wav, StageTimes(
-        stages=stages,
-        total_ms=sum(stages.values()),
+        stages=stage_ms,
+        total_ms=sum(stage_ms.values()),
         wall_s=wall_s,
         audio_s=len(wav) / DEFAULT_SAMPLE_RATE,
     )
