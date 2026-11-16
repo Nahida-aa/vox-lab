@@ -67,7 +67,8 @@ bf16 支持现状（本机核对 2026-11-17）：
 `torch.compile`（`optimize=True`）后测的。我们默认 `optimize=False` 是为了让
 profiler 看到真实算子耗时，两者不可直接对比。
 
-本仓库 `.venv` 上实验未能完成，卡点记录如下（避免重复踩）：
+实验最终在 **Python 3.12 + CPU torch 2.14.1** 环境下跑通（`.venv312`）。`.venv`
+（3.14 + torch 2.14.1+rocm7.2）上跑不通，卡点记录如下（避免重复踩）：
 
 - `torchaudio` 无 cp314 wheel（PyPI 与 rocm7.2 索引都没有），`voxcpm` 顶层
   无条件 import → `core` 里加了桩，音频 IO 路径会显式报错。
@@ -76,9 +77,35 @@ profiler 看到真实算子耗时，两者不可直接对比。
   说明不是「慢」而是环境问题（python 3.14 + torch 2.14+rocm7.2 + 桩的组合）。
 - 因此分段耗时与 dtype SNR 尚未获得；工具本身（`core` / `cli` / `server`）已就绪。
 
-下次尝试顺序：换到 VoxCPM 已验证可跑的 Python 3.12 环境 → 先跑 `generate`
-（无 profiler）确认能出音频 → 再跑 `profile`；若 profiler 本身成为瓶颈，改用
-`torch.profiler` 的 `schedule` 只采样一个 token。
+换到 Python 3.12 + CPU torch 后一切正常，说明是 3.14 / ROCm 版 torch / 桩的组合
+问题，不是模型或代码问题。
+
+## 实测：分段耗时（2026-11-17）
+
+环境：`.venv312`（Python 3.12 + `torch 2.14.1+cpu`），`--device cpu --max-len 32
+--dit-steps 4`，`optimize=False`，墙钟 23.86 s / 音频 2.88 s → **RTF 8.29**。
+
+计时方式：对 `tts_model` 的**叶子模块**注册 forward hook，按顶层模块名归组
+（容器可能通过子模块调用，例如 `audio_vae.decoder(x)`，只 hook 顶层会漏掉大块）。
+
+| 阶段 | 耗时 | 占比 |
+|------|------|------|
+| `base_lm`（MiniCPM4，1472M） | 4793 ms | 36.2% |
+| `feat_decoder` = UnifiedCFM（212M，DiT/CFM） | 3921 ms | 29.6% |
+| `audio_vae`（94M） | 1794 ms | 13.6% |
+| `residual_lm`（378M） | 1370 ms | 10.4% |
+| `feat_encoder`（208M） | 1249 ms | 9.4% |
+| 投影层合计 | ~100 ms | 0.8% |
+| **未归因**（Python 循环、KV cache、采样） | 10633 ms | 44.6% |
+
+**结论修正**：最初假设「LM 解码是绝对大头，GPU 救不了」。实测 **LM 合计 46.6%**，
+而 **CFM 29.6% + VAE 13.6% + encoder 9.4% = 52.6%**，这三段都是并行、批量、
+卷积/注意力密集的形状。因此可行的路线不是全栈重写，而是**只把 CFM + VAE 搬到
+GPU**（kernel 骨架可复用 demucs-wgpu），LM 留在 CPU。
+
+未完成：`dtype` 实验（bf16 vs fp32）。fp32 权重 8.7 GB，本机 27 GB 内存此时已用
+16 GB、`/proc/pressure/memory` 显示换页，fp32 生成无法在合理时间内完成。
+建议改在有显存余量的机器上做，或先用 `--max-len 8 --dit-steps 2`。
 
 ## 相关
 
