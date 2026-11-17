@@ -158,6 +158,22 @@ corr 1.0  maxdiff 0.0
 后续要做确定性评测，应使用较长、结构完整的句子（实测 `这是一段用于测试的中文语音。`
 稳定在 3.04 s）。
 
+## Burn GPU 后端
+
+bf16 在 gfx1103 上不可用（无 matmul），但有可用的替代组合，详见
+[burn-gpu-backends.md](./burn-gpu-backends.md)：
+
+| 组合 | RTF | 说明 |
+|------|-----|------|
+| Vulkan + f16 | **3.9–5.6** | 推荐 |
+| wgpu + f16 | 5.66 | 与 Vulkan f16 输出相关性 0.93（采样随机） |
+| Vulkan + bf16 | — | `cubek-matmul` panic |
+| Vulkan/wgpu + f32 | — | 8.7 GB 权重超出 4 GB VRAM + GTT |
+| Vulkan + bf16 + 朴素 matmul | 76.6 | 能跑但无实用价值，仅作数值验证 |
+| Burn CPU | 338 | |
+
+开关：`VOXLAB_FLOAT=f16|f32|bf16`、`VOXLAB_NAIVE_MATMUL=1`。
+
 ## 结论
 
 1. **能跑通的可用路径**：PyTorch CPU（RTF 8.29）、Burn Vulkan f16（RTF 3.9–5.6）。
