@@ -112,9 +112,51 @@ corr 1.0  maxdiff 0.0
 | 中文 + `--seed 42` 跑两次 | 长度均 29.60 s，maxdiff 0.0 |
 
 注意：长度稳定不等于内容正确。`你好。` 配上种子与 f16 会一直生成到 `max_len`
-上限（29.6 s，触发 max_len），说明该组合下 stop head 没有正常触发；换稍长的句子
-`这是一段用于测试的中文语音。` 则正常（3.04 s，RTF 4.32）。这类「停不下来」的
-情形需要单独排查，不要用「有 seed 就能复现」掩盖过去。
+上限（29.6 s），换稍长的句子 `这是一段用于测试的中文语音。` 则正常（3.04 s）。
+
+## stop head 排查（2026-11-17）
+
+加了 `VOXCPM_DEBUG_STOP=1` 打印每步 stop logits（`DitStep` 内，`voxcpm-rs`
+`a6b4a5c` 之后）。两组同参数（f16 / `--seed 42` / `--timesteps 4` / `--max-len 40`）对比：
+
+**英文 `Hello world, this is a test.`** —— 正常停止（1.92 s）
+
+```
+[stop] logits=[29.609, -37.812] argmax=[false]   ← 预填充步，类 0 占优
+[stop] logits=[7.0625, -10.07]  argmax=[false]
+...
+[stop] logits=[0.603, -0.682]   argmax=[false]   ← 中段类 1 逐步逼近
+[stop] logits=[-2.789, 2.074]   argmax=[true]    ← 最终翻到类 1
+```
+
+**中文 `你好。`** —— 不停止，跑满 40 个 patch
+
+```
+[stop] logits=[29.594, -37.344] argmax=[false]
+[stop] logits=[1.796, -2.668]   argmax=[false]
+[stop] logits=[0.459, -0.460]   argmax=[false]   ← 两值几乎相等但对调
+[stop] logits=[0.926, -0.883]   argmax=[false]   ← 之后稳定在类 0 略高
+...
+[stop] logits=[1.20, -1.38]     argmax=[false]
+```
+
+**结论与排除项**
+
+- 不是 `argmax` 阈值问题：中文那组两类 logits 长期贴近 0（|logit| < 1.5），
+  但始终类 0 略高，从未翻面；英文那组最后明确翻到类 1（+2.07 vs −2.79）。
+- 不是死循环：中文组 logits 有起伏（0.38 → 1.23），模型在持续产生内容，只是
+  stop head 一直判「继续」。语音内容本身是否重复未验证。
+- 不是纯精度问题，也无法完全排除：`f32` 对照跑不起来（权重 8.7 GB，780M
+  共享显存 OOM），这一项仍待有更大显存的机器验证。
+- 不是实现与人不同：Rust 的 `stop_head(silu(stop_proj(lm_hidden)))` 与
+  PyTorch 参考（`model/voxcpm2.py:1113`）的时序、取用的 hidden 完全一致。
+- **参考实现本身也不稳定**：PyTorch 同 seed 连跑 3 次「你好。」，音频长度分别是
+  2.40 / 0.64 / 0.64 s —— 说明 `torch.manual_seed` 没覆盖全部随机源（我们只控制了
+  CFM 的 z），短文本的停止点本身就随机。
+
+因此当前判断：**短中文文本停不下来是模型/采样层面的脆弱性，不是 Rust 移植缺陷**。
+后续要做确定性评测，应使用较长、结构完整的句子（实测 `这是一段用于测试的中文语音。`
+稳定在 3.04 s）。
 
 ## 结论
 
