@@ -1,26 +1,23 @@
 [workspace]
 members = ["packages/voice-cloning","packages/vox-core","packages/voxcpm-cloud",
-    "packages/demucs-burn",
-    "submodule/voxcpm-rs",
-    "submodule/voxcpm-rs/vendor/patched/burn-cubecl",
-    "submodule/voxcpm-rs/vendor/patched/cubecl-spirv", "packages/util",
+    "packages/demucs-burn", "packages/util",
 ]
 
 # 以下为独立 workspace 包（各自 Cargo.toml 带 [workspace] 空表），不列入 members：
-# - voxcpm-burn：当前无需编译，移出主 workspace。
 # - demucs-tch：tch-rs 0.27 / torch-sys 0.27。
 # - demucs-burn-tch：性能对比基线，burn 0.21 的 burn-tch → tch 0.22 / torch-sys 0.22。
 # 后两者与 demucs-tch 的 0.27 存在 links = "tch" 冲突，不能进同一依赖图；
 # 各自使用各自的 target/ 与 Cargo.lock。
 exclude = [
-    "packages/voxcpm-burn",
     "packages/demucs-tch",
     "packages/demucs-burn-tch",
     # demucs-wgpu：对 submodule/demucs-wgpu 的封装，自带 wgpu 依赖图与 Cargo.lock。
     "packages/demucs-wgpu",
+    # voxcpm-rs：独立 workspace（自带 [patch.crates-io] 的 bf16 补丁），
+    # 其 workspace 成员含 vox-lab 侧的 vox-lab-burn（原 packages/voxcpm-burn）。
+    "submodule/voxcpm-rs",
 ]
 
 [workspace.dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
-voxcpm-rs = { path = "submodule/voxcpm-rs" }

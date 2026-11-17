@@ -122,11 +122,29 @@ GPU**（kernel 骨架可复用 demucs-wgpu），LM 留在 CPU。
 说明瓶颈不在 matmul（Burn 侧是 f32 权重 + 朴素 conv），而在卷积实现与
 缺少 bf16 支持。CPU 上 Burn 不是 VoxCPM2 的可用路径。
 
-**Vulkan 路径暂时无法在本仓库验证**：`voxcpm-rs` 的 bf16/SPIR-V 依赖
-`[patch.crates-io]` 指向 `vendor/patched/{burn-cubecl,cubecl-spirv}`，但 patch 只在
-**workspace 根**生效，而 `submodule/voxcpm-rs` 是 vox-lab 的 workspace 成员，
-根 `Cargo.toml` 并没有这段 patch。要在本仓库测 Vulkan bf16，需要把 patch 提升到
-根（会影响同样使用 burn-cubecl 的 `demucs-burn`），或在独立副本里单独构建。
+Vulkan 路径当时无法验证（patch 只在 workspace 根生效），后已通过把 voxcpm-rs
+改为独立 workspace 解决，结果见下节。
+
+## 结构变更（2026-11-17）：voxcpm-rs 改为独立 workspace
+
+`submodule/voxcpm-rs` 不再作为 vox-lab 的 workspace 成员，改为**独立 workspace 根**，
+原因是 bf16/SPIR-V 依赖的 `[patch.crates-io]`（`vendor/patched/{burn-cubecl,cubecl-spirv}`）
+只在 workspace 根生效。原 `packages/voxcpm-burn` 随之移入
+`submodule/voxcpm-rs/vox-lab-burn/`（crate 名 `vox-lab-burn`，lib 名仍为
+`voxcpm_burn`），三个后端 bin 在子模块内构建。
+
+## Burn 的 Vulkan / wgpu 实测（2026-11-17，780M）
+
+| 后端 | 结果 |
+|------|------|
+| `vulkan`（bf16） | 加载 58.9 s，生成时 panic：`cubek-matmul` 报 `BF16 lhs/rhs/output not supported` —— 与 [0010](./0010-demucs-wgpu-backend.md) 的结论一致，gfx1103 没有 bf16 matmul |
+| `wgpu`（f32） | 加载 96.9 s，生成时 `radv/amdgpu: Not enough memory for command submission`，随后 wgpu 校验失败 panic |
+| `cpu`（ndarray） | RTF 338.1 |
+| `cpu-blas`（OpenBLAS） | RTF 392.7 |
+
+wgpu f32 失败的直接原因：4.4 GB bf16 权重在 f32 下是 **8.7 GB**，本机是核显，
+显存来自共享内存（27 GB 总量，此时已用约 16 GB），放不下权重 + 激活 + workspace。
+这不是 shader 问题，是容量问题。
 
 ## 相关
 
