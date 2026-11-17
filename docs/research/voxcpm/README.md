@@ -174,6 +174,15 @@ bf16 在 gfx1103 上不可用（无 matmul），但有可用的替代组合，�
 
 开关：`VOXLAB_FLOAT=f16|f32|bf16`、`VOXLAB_NAIVE_MATMUL=1`。
 
+**f16 精度**（逐阶段 dump 对比 PyTorch bf16，详见 [f16-precision.md](./f16-precision.md)）：
+
+| 阶段 | rust-cpu vs PyTorch | vulkan-f16 vs PyTorch |
+|------|--------------------|----------------------|
+| VAE 编码（latent） | 90.35 dB | **29.40 dB** |
+| 特征编码（LM hidden） | 42.73 dB | 42.76 dB |
+
+即特征编码不受 f16 影响，VAE 编码有约 3.5% 的相对误差。
+
 ## 结论
 
 1. **能跑通的可用路径**：PyTorch CPU（RTF 8.29）、Burn Vulkan f16（RTF 3.9–5.6）。
