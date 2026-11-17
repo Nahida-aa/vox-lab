@@ -107,6 +107,27 @@ GPU**（kernel 骨架可复用 demucs-wgpu），LM 留在 CPU。
 16 GB、`/proc/pressure/memory` 显示换页，fp32 生成无法在合理时间内完成。
 建议改在有显存余量的机器上做，或先用 `--max-len 8 --dit-steps 2`。
 
+## Burn 路径实测（2026-11-17）
+
+用 `submodule/voxcpm-rs` 的 `examples/tts`（`VOXCPM_TIMESTEPS=4`，模型同为
+`data/models/voxcpm2`，文本“你好。”，产出 0.80 s 音频）：
+
+| 后端 | 加载 | 生成 | RTF |
+|------|------|------|-----|
+| Burn `cpu`（ndarray + simd） | 65.7 s | 270.5 s | **338.1** |
+| Burn `cpu-blas`（OpenBLAS 0.3.34） | 71.6 s | 314.2 s | **392.7** |
+| PyTorch CPU（bf16，同机） | 29.4 s | 23.9 s | **8.29** |
+
+结论：Burn 的 CPU 路径比 PyTorch 慢约 40 倍，且 `cpu-blas` 没有带来改善 ——
+说明瓶颈不在 matmul（Burn 侧是 f32 权重 + 朴素 conv），而在卷积实现与
+缺少 bf16 支持。CPU 上 Burn 不是 VoxCPM2 的可用路径。
+
+**Vulkan 路径暂时无法在本仓库验证**：`voxcpm-rs` 的 bf16/SPIR-V 依赖
+`[patch.crates-io]` 指向 `vendor/patched/{burn-cubecl,cubecl-spirv}`，但 patch 只在
+**workspace 根**生效，而 `submodule/voxcpm-rs` 是 vox-lab 的 workspace 成员，
+根 `Cargo.toml` 并没有这段 patch。要在本仓库测 Vulkan bf16，需要把 patch 提升到
+根（会影响同样使用 burn-cubecl 的 `demucs-burn`），或在独立副本里单独构建。
+
 ## 相关
 
 - [0010](./0010-demucs-wgpu-backend.md) demucs 的自研 WGSL 路径
