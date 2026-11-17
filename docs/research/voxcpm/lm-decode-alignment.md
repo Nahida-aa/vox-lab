@@ -1,62 +1,54 @@
 # LM 解码阶段数值对照（`base_lm` / `residual_lm`）
 
-目的：把自回归阶段的漂移拆成「LM 本身」和「采样器」两部分。做法是给 Rust 侧加
-逐 token dump，然后在 PyTorch 参考里复刻同样的循环，同样 dump，逐张量比 SNR。
+目的：把自回归阶段的漂移拆成「LM 本身」和「采样器」两部分。
 
 ## 工具
 
-- Rust：`VOXCPM_DUMP_AR=<dir>`（voxcpm-rs `468000c`）。每步写出：
-  `step_m1_{lm,residual}_hidden`（预填充后、第一次 DiT 的输入）、
-  `step_{i}_{lm_hidden,residual_hidden,pred_feat}`（`lm_step` 之后的下一步输入与 DiT 输出）。
-  格式是裸 f32 LE + 同名 `.shape`。
-- PyTorch：`/tmp/ref_ar_dump.py`，复刻零样本路径的 `_inference`（不经过 `_generate`
-  的 badcase 重试），同参数、同 seed。
+- Rust：`VOXCPM_DUMP_AR=<dir>`（voxcpm-rs `468000c`）。写出 `step_m1_{lm,residual}_hidden`
+  （预填充后）、`step_{i}_{lm_hidden,residual_hidden,pred_feat,dit_input}`，裸 f32 LE + `.shape`。
+- PyTorch：`/tmp/ref_ar_dump.py`，复刻零样本 `_inference`，同参数同 seed。
+- 配置：`Hello world, this is a test.`，`--timesteps 4 --seed 42 --max-len 8`，`min_len=2`，8 步。
 
-## 配置
+## 关键结论：必须先消掉采样器的随机性
 
-`Hello world, this is a test.`，`--timesteps 4 --seed 42 --max-len 8`，`min_len=2`，
-两侧都跑 8 步（未触发 stop）。
+不加控制时，Rust CPU 与 PyTorch 的预填充一致性是 **43.84 / 44.54 dB**，但第一步就掉到
+**1.97 / 4.39 dB**，`pred_feat` 是负 SNR。这不是累积误差，而是**第一次迭代就有结构差异**——
+两侧 CFM 的初始噪声来自不同的随机流（Rust 用 `StdRng::seed_from_u64(42)`，PyTorch 用
+`torch.manual_seed`），而 `pred_feat` 又直接喂回 LM，差异立刻放大。
 
-## 结果
+两侧都强制 `z = 0`（Rust 用 `VOXCPM_Z_ZERO=1`，PyTorch 侧临时把 `torch.randn`/
+`randn_like` 换成 zeros）后：
 
-### Vulkan f16 vs Rust CPU（同一份实现，只差精度）
+| 张量 | 结果（rust-cpu vs pytorch） |
+|------|----------------------------|
+| `step_m1_lm_hidden` | 43.84 dB |
+| `step_0_lm_hidden` | 30.91 dB |
+| `step_0_pred_feat` | 27.48 dB |
+| `step_0_residual_hidden` | 40.61 dB |
+| step 1–7 各张量 | 26.7 – 34.1 dB |
 
-| 张量 | step 0 | step 3 | step 7 |
-|------|--------|--------|--------|
-| `lm_hidden` | 41.84 dB | 27.17 dB | 30.23 dB |
-| `pred_feat` | 56.02 dB | 43.54 dB | 23.55 dB |
-| `residual_hidden` | 56.94 dB | 39.32 dB | 26.75 dB |
-| 预填充 (`step_m1`) | 57.50 / 60.16 dB | | |
+即：**LM 解码实现与参考一致到 27–40 dB**，之前的低 SNR 完全是采样随机性造成的假象。
 
-**结论**：同一实现内，f16 的误差逐 token 缓慢累积（42 → 30 dB），8 步后仍在 23–30 dB，
-没有爆炸。这是纯粹的精度代价，可接受性取决于应用。
+## 另一个发现：f16 的自回归不稳定（未定论）
 
-### Rust CPU vs PyTorch 参考
+同一版本的 Vulkan 二进制，**改动前后**跑同参数得到完全不同的预填充结果：
 
-| 张量 | 预填充 | step 0 | step 7 |
-|------|--------|--------|--------|
-| `lm_hidden` | **43.84 dB** | **1.97 dB** | 11.41 dB |
-| `residual_hidden` | **44.54 dB** | **4.39 dB** | −0.35 dB |
-| `pred_feat` | — | **−1.93 dB** | −2.97 dB |
+| 运行 | `step_m1_lm_hidden` rms | 与 CPU 的 corr |
+|------|------------------------|----------------|
+| 旧二进制 | 0.5327 | **1.000000** |
+| 新二进制 | 1.6872 | 0.099 |
+| 回退到 `468000c` 重建 | 1.6872 | 0.099 |
 
-**这里出现断崖**：预填充阶段两侧高度一致（44 dB），但第一次自回归步就掉到 2–4 dB，
-`pred_feat` 更是负 SNR。说明不是「累积误差」，而是**第一次迭代就有结构差异**。
+回退后仍是 1.6872，说明**不是代码改动引起的**，而是「添加 `dit_input` dump」那次构建之后
+首次复现、且稳定复现。预填充阶段完全不受 CFM 影响，出现 3.17 倍量级差异说明 f16 路径
+存在与构建/驱动状态相关的非确定性（可疑：cubecl 的 kernel 选择或 autotune 缓存）。
+
+这个现象使 **f16 的自回归一致性目前不可信**，也让之前「f16 vs CPU 逐 token 23–30 dB」
+的结论需要重新验证（那次用的是旧二进制）。
 
 ## 待查
 
-1. **KV cache 的 step 位点**：PyTorch 用 `kv_cache.step()` 返回的整数做位置索引，
-   Rust 用 `state.steps_taken`。两者若差一位，attention 位置编码就会整体错开。
-2. **DiT 条件输入**：参考实现用 `prefix_feat_cond.transpose(1, 2)`，Rust 用
-   `state.prefix_feat_cond.swap_dims(1, 2)`；预填充阶段两者一致，但 `lm_step` 之后
-   的更新时机需要逐行核对。
-3. **`fsq_layer` 的作用点**：参考实现里 `lm_hidden = self.fsq_layer(lm_hidden)` 在
-   `base_lm.forward_step` 之后；Rust 在 `lm_step` 内部，两者对 `residual_lm` 的输入
-   是否等价需确认。
-4. **噪声来源**：`pred_feat` 由 CFM 采样得到，参考脚本没有插 CFM 的 seed（只靠
-   `torch.manual_seed(42)`），而 Rust 用的是 `StdRng::seed_from_u64(42)` —— 两边的
-   随机流本来就不同。这一条足以单独解释 `pred_feat` 的负 SNR，也必然会传导到
-   后续的 `lm_hidden`。
-
-第 4 条最可能是主因。修正方法：给参考脚本注入与 Rust 相同的 z（把 Rust dump 的
-初始噪声喂给 PyTorch 的 `feat_decoder`），或者在两侧都用 `VOXCPM_Z_ZERO=1` 做
-纯确定性对比。
+1. f16 的构建/运行非确定性：是否有 autotune 缓存（`CUBECL_CACHE`/`~/.cache/cubecl`），
+   清理后是否回到 0.5327。
+2. 若确认存在缓存依赖，需要固定编译选项再重跑 f16 的逐 token 对照。
+3. `dit_input` dump 刚加上，尚未在 PyTorch 侧对齐（参考脚本还没有这一步）。
