@@ -91,6 +91,31 @@ corr 1.0  maxdiff 0.0
 可复现，但输出电平异常低（rms 0.0035 / 峰值 0.034，正常语音约 0.1–0.7），
 疑似零初值下 CFM 退化，且 VAE 的 `NoiseBlock` 仍随机。**这是诊断手段，不是生产方案**。
 
+### 已实现：`GenerateOptions::seed`
+
+两处随机都改为接受 `Option<u64>`：
+
+- `UnifiedCfm::forward(..., seed)` —— 用 `StdRng::seed_from_u64` + Box–Muller 生成
+  `z ~ N(0,1)`
+- `NoiseBlock::forward_seeded(x, seed)` —— 同上（附带 `CausalDecoder::forward_seeded`、
+  `AudioVae::decode_seeded` 透传链）
+
+对外暴露为 `GenerateOptions::seed`（`builder().seed(n)`）与 CLI `--seed`。
+未播种时行为与上游完全一致（每次新的随机噪声）。
+
+实测（Vulkan f16，`--timesteps 4`）：
+
+| 输入 | 结果 |
+|------|------|
+| 英文 + `--seed 42` 跑两次 | 长度均 1.92 s，**corr 1.0 / maxdiff 0.0** |
+| 英文 + `--seed 7` | 长度同样 1.92 s，但与 seed 42 的 corr 仅 −0.039（内容确实不同） |
+| 中文 + `--seed 42` 跑两次 | 长度均 29.60 s，maxdiff 0.0 |
+
+注意：长度稳定不等于内容正确。`你好。` 配上种子与 f16 会一直生成到 `max_len`
+上限（29.6 s，触发 max_len），说明该组合下 stop head 没有正常触发；换稍长的句子
+`这是一段用于测试的中文语音。` 则正常（3.04 s，RTF 4.32）。这类「停不下来」的
+情形需要单独排查，不要用「有 seed 就能复现」掩盖过去。
+
 ## 结论
 
 1. **能跑通的可用路径**：PyTorch CPU（RTF 8.29）、Burn Vulkan f16（RTF 3.9–5.6）。
