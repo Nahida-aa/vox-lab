@@ -8,7 +8,7 @@
 
 | 模型 | 设备 | RTF | 说明 |
 |------|------|-----|------|
-| whisper.cpp | Vulkan (RADV) | **0.081–0.11** | large-v3-turbo，参数相关；预构建资产见 `release-whisper-{linux,windows}.yml` |
+| whisper.cpp（**Vulkan 构建**，二进制名 `whisper-cli`） | Vulkan (RADV) | **0.081–0.11** | large-v3-turbo，参数相关；预构建资产见 `release-whisper-{linux,windows}.yml` |
 | faster-whisper（CTranslate2） | GPU (ROCm) | ~0.12 | 需 `HSA_OVERRIDE_GFX_VERSION=11.0.0`；`word_timestamps` 必须关闭 |
 | faster-whisper | CPU | ~0.25 | large-v3-turbo int8，无 hang 风险，生产兜底 |
 | openai-whisper（PyTorch） | CPU | — | 稳定可用 |
@@ -18,12 +18,23 @@
 | 路径 | 现象 |
 |------|------|
 | openai-whisper (PyTorch) + ROCm GPU | 100% SIGSEGV。25 次子进程试验 0 通过，连 `tiny`（39M）也立刻崩；`word_timestamps=False` 无效 |
-| whisper.cpp HIPBLAS | MES hang |
+| whisper.cpp 的 **HIPBLAS 构建** | 长音频（170 s）MES hang；短音频可跑，RTF ~0.36。注意这是同一份源码的另一个后端，与下面可用的 Vulkan 构建无关 |
 | faster-whisper + `word_timestamps=True` | 第二遍对齐触发 GPU watchdog |
 
 细节见 [whisper-rocm-hang.md](../../../packages/research/whisper-rocm-hang.md)。
 
 ## 关键发现
+
+### 0. 「whisper.cpp 挂了」要先问是哪个构建
+
+`whisper-cli` 只是 whisper.cpp 的可执行文件名，同一份源码可以按后端编出
+Vulkan / HIPBLAS / CUDA / CPU 等不同版本。本机上：
+
+- Vulkan 构建：稳定，RTF 0.081
+- HIPBLAS 构建：短音频可跑（RTF ~0.36），长音频 MES hang
+
+所以「whisper.cpp 会 hang」这个说法不准确，应该说「whisper.cpp 的 HIPBLAS 构建
+在长音频上 hang」。
 
 ### 1. 同机上的反例，说明核显 Vulkan 并不慢
 
@@ -61,8 +72,8 @@ normCER / 覆盖率对照表（最佳：`vad-v6-th02` + sidechain，normCER 8.41
 ## 复现方式
 
 ```bash
-# whisper.cpp Vulkan
-./target/release/whisper -m <ggml-large-v3-turbo.bin> -f input.wav
+# whisper.cpp 的 Vulkan 构建（可执行文件名 whisper-cli）
+./build/bin/whisper-cli -m <ggml-large-v3-turbo.bin> -f input.wav
 
 # PyTorch 路径的 hang 复现（每个 trial 独立子进程）
 .venv/bin/python packages/research/whisper_rocm_hang/test_01_encoder.py
