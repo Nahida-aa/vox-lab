@@ -46,12 +46,15 @@ autotune 缓存。
 - 是否与文本长度/预填充长度有关（`min_len=2` 之外的判定）
 - stop head 的输入（`lm_hidden`）在该组合下是否本身就偏离（与第 0 项相关）
 
-## 3. GPU 化 CFM + VAE（自研 WGSL）
+## 3. 自研 WGSL 重写 CFM + VAE（可选方向，非既定方案）
 
-**为什么**：PyTorch 分段显示 `feat_decoder`(CFM) 29.6% + `audio_vae` 13.6% +
-`feat_encoder` 9.4% = **52.6%**，权重合计约 514 MB（f32 约 1 GB），容量上完全可行。
-LM 留在 CPU 也不会成为瓶颈。
+**前提先说清**：整模型已经能在 Vulkan f16 上跑（RTF 3.9–5.6），所以这不是「必须搬 GPU」，
+而是「要不要用自研 kernel 替掉 cubecl 这一层」。
 
-**怎么做**：kernel 骨架可复用 `packages/demucs-wgpu`；先做 CFM，再做 VAE。
+**为什么可能值得做**：CFM + VAE + encoder 合计 52.6% 的 CPU 耗时、权重约 514 MB
+（f32 约 1 GB），容量不构成障碍；`packages/demucs-wgpu` 提供了可复用的 kernel 骨架。
+另一个动机是 cubecl 在 Vulkan 上的构建间非确定性（见第 0 项）——自研 kernel 可以绕开这一层。
+
+**代价**：要自己维护 CFM / VAE 的全部算子；相比换精度、调 kernel 选择，工作量大一个量级。
 
 **风险**：f16 在 VAE 上有 3.5% 相对误差；自研 kernel 若用 f32 可绕开（容量允许）。

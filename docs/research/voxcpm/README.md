@@ -44,8 +44,12 @@ VoxCPM2 TTS 链路（MiniCPM4 LM + 残差 LM + CFM/DiT + AudioVAE）的实测与
 | 投影层合计 | ~100 ms | 0.8% |
 | 未归因（Python 循环、KV cache、采样） | 10633 ms | 44.6% |
 
-**要点**：LM 合计 46.6%，CFM + VAE + encoder 合计 52.6%。后三段是并行、批量、
-卷积/注意力密集的形状，适合搬 GPU；不必全栈重写。
+**要点**：LM 合计 46.6%，CFM + VAE + encoder 合计 52.6%，另有 44.6% 落在模块之外
+（Python 胶水、KV cache 管理、采样循环）。
+
+注意这是 **CPU 上的分布**，不能用它推断「搬到 GPU 后哪段还值得优化」——不同后端的
+瓶颈并不相同。后续实测已经证明整模型都可以跑在 Vulkan f16 上（RTF 3.9–5.6），
+不存在「LM 必须留在 CPU」的约束。
 
 ## Burn 路径实测（`submodule/voxcpm-rs`）
 
@@ -220,8 +224,10 @@ bf16 在 gfx1103 上不可用（无 matmul），但有可用的替代组合，�
 
 1. **能跑通的可用路径**：PyTorch CPU（RTF 8.29）、Burn Vulkan f16（RTF 3.9–5.6）。
    Burn CPU（338）和 Burn wgpu f32（OOM）不可用。
-2. **GPU 化的正确范围**：只搬 CFM + VAE + encoder（52.6% 时间、约 514 MB 权重），
-   LM 留 CPU。全栈重写收益不大，且受带宽限制。
+2. **分段耗时的用途**：定位「时间花在哪」——CFM + VAE + encoder 占 52.6%，另有
+   44.6% 在模块之外。**这只是一个候选方向，不是已采纳的方案**：曾据此设想过
+   「只把 CFM + VAE 搬 GPU」，但随后整模型在 Vulkan f16 上已跑通（RTF 3.9–5.6），
+   该取舍不再成立。
 3. **确定性缺失**：Burn 侧需要给 `GenerateOptions` 加 seed（两处随机都用它），
    否则无法回归测试。
 
