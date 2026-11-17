@@ -2,7 +2,7 @@
 
 语音处理多后端实验与 Rust 化工作区：围绕 **ASR（whisper）**、**音源分离（demucs）**、
 **TTS / VC（VoxCPM、CosyVoice）** 三条链路，对比 Rust（Burn / GGML / ONNX Runtime /
-自研 WGSL 内核）、PyTorch 与云端运行时在不同设备（CPU / Vulkan / CUDA / ROCm …）上的推理表现，
+基于上游 WGSL 实现）、PyTorch 与云端运行时在不同设备（CPU / Vulkan / CUDA / ROCm …）上的推理表现，
 并沉淀基准测试、问题排查记录与可发布的预构建资产。
 
 架构与实现决策集中记录在 **[`docs/decisions/`](./docs/decisions/README.md)**
@@ -30,7 +30,7 @@
    （`voxcpm_pytorch`，FastAPI + Gradio）。`packages/demucs_pytorch/` 是
    PyTorch 参考实现，仅用于校验 `demucs-tch`，不是服务。
    音源分离另有两条不依赖 Burn 的路径：`demucs-tch`（tch-rs / libtorch）与
-   `demucs-wgpu`（自研 WGSL kernel + Vulkan，封装 `submodule/demucs-wgpu`），
+   `demucs-wgpu`（上游 WGSL kernel + Vulkan，封装 `submodule/demucs-wgpu`），
    见 [ADR 0009](./docs/decisions/0009-demucs-tch-backend-builds.md)、
    [0010](./docs/decisions/0010-demucs-wgpu-backend.md)。
 2. **Device 由构建产物决定，不暴露运行时开关**：Burn 侧每个后端由 Cargo feature
@@ -120,7 +120,7 @@
 | `submodule/demucs-rs` | Rust 侧 Demucs 分离实现 | 分离 |
 | `submodule/demucs` | 官方 Demucs（PyTorch，`adefossez/demucs`） | 分离 / 权重与参考 |
 | `submodule/demucs.cpp` | GGML / C++ Demucs 推理 | 分离 / GGML 基准 |
-| `submodule/demucs-wgpu` | 纯 Rust + wgpu 的 HTDemucs（自研 WGSL kernel，CPU/Vulkan 双后端） | 分离 / GPU（fork: Nahida-aa） |
+| `submodule/demucs-wgpu` | 纯 Rust + wgpu 的 HTDemucs（上游 WGSL kernel，CPU/Vulkan 双后端） | 分离 / GPU（fork: Nahida-aa） |
 | `submodule/whisper.cpp` | whisper.cpp（钉在 LocalDub 同 commit，Vulkan 后端） | ASR |
 | `submodule/CosyVoice` | 官方 CosyVoice（CosyVoice2/3） | TTS / VC 基准 |
 
@@ -134,7 +134,7 @@ Cargo workspace 成员见根 `Cargo.toml`；`packages/` 下按职责分组：
 | 分组 | 目录 | 说明 |
 |------|------|------|
 | Rust 运行时 | `voxcpm-burn`、`demucs-burn`、`voxcpm-cloud`、`vox-core`、`voice-cloning`、`util` | Burn / 云端对接 / 公共 wav·工具库 |
-| Rust 分离后端 | `demucs-tch`（tch-rs CPU，可构建 cuda/rocm 变体）、`demucs-burn-tch`（Burn 0.21 对比基线）、`demucs-wgpu`（自研 WGSL / Vulkan） | 均不依赖主 workspace 的 Burn 版本，各自独立 workspace |
+| Rust 分离后端 | `demucs-tch`（tch-rs CPU，可构建 cuda/rocm 变体）、`demucs-burn-tch`（Burn 0.21 对比基线）、`demucs-wgpu`（上游 WGSL / Vulkan） | 均不依赖主 workspace 的 Burn 版本，各自独立 workspace |
 | Python 服务/工具 | `voxcpm_pytorch`、`demucs_pytorch`、`servers_py` | uv workspace；`voxcpm_pytorch` 分 `core` / `cli` / `server`，含精度与分段耗时实验 |
 | 基准 | `benchmark/`（asr / ocr / separate / VC 等子目录与 `results/FINDINGS.md`） | 各后端 RTF / CER / 内存实测 |
 | 研究记录 | `research/`（ROCm hang、模型加载耗时、ONNX NaN、ASR 回归等） | 问题排查与结论沉淀 |
@@ -144,7 +144,7 @@ Cargo workspace 成员见根 `Cargo.toml`；`packages/` 下按职责分组：
 
 | 路径 | 设备 | RTF | 备注 |
 |------|------|-----|------|
-| `demucs-wgpu` | Vulkan (780M) | **0.11** | 自研 WGSL kernel；`htdemucs_ft` 为 0.45 |
+| `demucs-wgpu` | Vulkan (780M) | **0.11** | 上游 WGSL kernel；`htdemucs_ft` 为 0.45 |
 | `demucs-tch` | CPU (libtorch) | 1.03 | `htdemucs_ft` 为 4.74 |
 | `demucs-wgpu` | CPU (host 路径) | 1.36 | 同一份代码的对比基线 |
 | PyTorch + ROCm | 780M | 0.64 | 需 `HSA_OVERRIDE_GFX_VERSION`，两次运行结果不一致，不作生产 |
@@ -215,7 +215,7 @@ vox-lab/
 │   ├── demucs-burn/              # Demucs Burn 运行时（tch / wgpu）
 │   ├── demucs-tch/               # Demucs tch-rs 运行时（独立 workspace，cpu/cuda/rocm）
 │   ├── demucs-burn-tch/          # Burn 0.21 + burn-tch 性能对比基线
-│   ├── demucs-wgpu/              # 自研 WGSL kernel 的 Vulkan 推理封装
+│   ├── demucs-wgpu/              # 上游 WGSL kernel 的 Vulkan 推理封装
 │   ├── voxcpm-cloud/             # 云端 Gradio 契约客户端（TS + Rust）
 │   ├── voice-cloning/            # 声音克隆相关
 │   ├── util/                     # cargo_build_cmd / cargo_build_bin 等构建辅助
@@ -317,7 +317,7 @@ settings.json         # 个人配置（差异大，忽略）
 - [x] 配置约定落地：`.gitignore` / `settings.example.json` / `.env.example`
 - [x] 基准测试与研究记录沉淀（`benchmark/` + `research/`）
 - [x] Linux / Windows 预构建资产发布（whisper-vulkan、demucs-burn tch/wgpu、demucs-tch cpu）
-- [x] 音源分离 GPU 路径落地：自研 WGSL kernel（Vulkan），htdemucs 3.6 s / 34 s 音频
+- [x] 音源分离 GPU 路径落地：上游 WGSL kernel（Vulkan），htdemucs 3.6 s / 34 s 音频
 - [x] LocalDub 侧主要能力的迁入（详见 ROADMAP「移植」章节）
 - [ ] LocalDub 侧 `steps/tts/mod.rs` 依赖切换与 `packages/voxlab` 退役（跨仓库收尾）
 

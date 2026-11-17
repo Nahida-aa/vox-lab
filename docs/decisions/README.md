@@ -24,7 +24,7 @@
 | [0007](./0007-config-conventions.md) | 配置约定（模板入库、加载器未实现） | accepted |
 | [0008](./0008-demucs-tch-standalone-workspace.md) | demucs-tch 独立 workspace（避开 torch-sys links 冲突） | accepted |
 | [0009](./0009-demucs-tch-backend-builds.md) | demucs-tch 按后端分别构建（cpu / cuda / rocm） | accepted |
-| [0010](./0010-demucs-wgpu-backend.md) | GPU 路径采用 demucs-wgpu（自研 WGSL 内核） | accepted |
+| [0010](./0010-demucs-wgpu-backend.md) | GPU 路径采用 demucs-wgpu（基于上游 WGSL 实现） | accepted |
 | [0011](./0011-voxcpm-gpu-backend-outlook.md) | VoxCPM GPU 路径先量化（dtype / 分段耗时），暂不自研 | proposed |
 
 ## 状态取值

@@ -4,7 +4,7 @@
 [`docs/decisions/`](../../decisions/README.md)，这里记「测了什么、结果如何」。
 
 相关 ADR：[0009](../../decisions/0009-demucs-tch-backend-builds.md)（tch 后端构建）、
-[0010](../../decisions/0010-demucs-wgpu-backend.md)（自研 WGSL 路径）。
+[0010](../../decisions/0010-demucs-wgpu-backend.md)（基于上游 WGSL 实现的 Vulkan 路径）。
 
 ## 环境
 
@@ -15,7 +15,7 @@
 
 ## 后端对比（2026-11）
 
-RTF = 处理时间 / 音频时长（越小越快）。`shifts=0`（确定性单趟），htdemucs 单模型。
+RTF = 处理时间 / 音频时长（越小越快）。`shifts=0`（确定性单趟），htdemucs 单模型（一次前向出四轨）。
 
 | 路径 | 实现 | 时间 | RTF | 备注 |
 |------|------|------|-----|------|
@@ -23,8 +23,8 @@ RTF = 处理时间 / 音频时长（越小越快）。`shifts=0`（确定性单�
 | PyTorch | CPU（官方 demucs） | 33.45 s | 0.99 | |
 | PyTorch | ROCm 2.14.1+rocm7.2 | 21.78 s | 0.64 | 需 `HSA_OVERRIDE_GFX_VERSION=11.0.0`；两次运行结果不一致 |
 | Burn（demucs-rs） | wgpu 0.20.1 | — | 2.41 | 历史数据，见 `packages/research/separate/readme.md` |
-| `demucs-wgpu` | wgpu（自研 WGSL）CPU | 46.05 s | 1.36 | 同一份代码的对照 |
-| **`demucs-wgpu`** | **wgpu（自研 WGSL）Vulkan** | **3.61 s** | **0.11** | ft 为 15.3 s（RTF 0.45） |
+| `demucs-wgpu` | wgpu（上游 WGSL）CPU | 46.05 s | 1.36 | 同一份代码的对照 |
+| **`demucs-wgpu`** | **wgpu（上游 WGSL）Vulkan** | **3.61 s** | **0.11** | ft 为 15.3 s（RTF 0.45） |
 
 ## 关键发现
 
@@ -49,7 +49,7 @@ Illegal seek for GPU arch : gfx1103
 即便 arch override 能跑，日志里持续刷 `MIOpen ... Solver <GemmFwdRest>,
 workspace required: ... provided ptr: 0 size: 0`，说明 conv 走了回退 solver。
 
-### 2. 自研 WGSL kernel 能拿到 9× 加速
+### 2. 上游 WGSL 实现的 Vulkan 路径能拿到 9× 加速
 
 `submodule/demucs-wgpu`（上游 `eclipse005/demucs-wgpu`，fork 在
 `Nahida-aa/demucs-wgpu`）是完整的 HTDemucs 前向实现，conv / attention / STFT /

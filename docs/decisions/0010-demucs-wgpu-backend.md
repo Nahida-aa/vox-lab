@@ -1,11 +1,11 @@
 ---
 number: 10
-title: GPU 路径采用 demucs-wgpu（自研 WGSL 内核），不深挖 ROCm 库
+title: GPU 路径采用 demucs-wgpu（基于上游 WGSL 实现），不深挖 ROCm 库
 status: accepted
 date: 2026-11-17
 ---
 
-# 10. GPU 路径采用 demucs-wgpu（自研 WGSL 内核）
+# 10. GPU 路径采用 demucs-wgpu（基于上游 WGSL 实现）
 
 ## 状态
 
@@ -28,7 +28,7 @@ CLI 契约与 `demucs-tch` 一致，输出与上游 CLI 逐样本相同（maxdif
 
 ## 决策
 
-- **GPU 路径 = `submodule/demucs-wgpu`**（自研 WGSL kernel + wgpu，Vulkan 已验证）。
+- **GPU 路径 = `submodule/demucs-wgpu`**（上游 `eclipse005/demucs-wgpu` 的 WGSL kernel + wgpu，Vulkan 已验证）。
   它是完整的 HTDemucs 前向实现（conv / attention / STFT / overlap-add 全自研），
   不依赖 libtorch、ROCm、CUDA。
 - **`packages/demucs-wgpu` 只做薄封装**：解析权重路径、剥掉 safetensors 的

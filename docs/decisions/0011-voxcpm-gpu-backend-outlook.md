@@ -13,7 +13,7 @@ date: 2026-11-17
 
 ## 背景
 
-demucs 在 780M 上靠自研 WGSL kernel 拿到 RTF 0.11（见 [0010](./0010-demucs-wgpu-backend.md)），
+demucs 在 780M 上靠上游 WGSL 实现（`eclipse005/demucs-wgpu`）拿到 RTF 0.11（见 [0010](./0010-demucs-wgpu-backend.md)），
 自然会问 VoxCPM 能否照做。两者结构差别很大：
 
 | | demucs | VoxCPM2 |
@@ -166,6 +166,6 @@ wgpu f32 失败的直接原因：4.4 GB bf16 权重在 f32 下是 **8.7 GB**，�
 
 ## 相关
 
-- [0010](./0010-demucs-wgpu-backend.md) demucs 的自研 WGSL 路径
+- [0010](./0010-demucs-wgpu-backend.md) demucs 的 WGSL/Vulkan 路径
 - [0009](./0009-demucs-tch-backend-builds.md) tch 的后端构建
 - `packages/voxcpm_pytorch/justfile`
