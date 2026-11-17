@@ -114,6 +114,39 @@ corr 1.0  maxdiff 0.0
 注意：长度稳定不等于内容正确。`你好。` 配上种子与 f16 会一直生成到 `max_len`
 上限（29.6 s），换稍长的句子 `这是一段用于测试的中文语音。` 则正常（3.04 s）。
 
+## LM 解码阶段数值对照（2026-11-17）
+
+用 `VOXCPM_DUMP_AR=<dir>` 逐 token 导出 `lm_hidden` / `residual_hidden` / `pred_feat` /
+`dit_input`，PyTorch 参考脚本复刻同样的循环，逐张量比 SNR。详见
+[lm-decode-alignment.md](./lm-decode-alignment.md)。
+
+**关键结论**：两侧 CFM 初始噪声来自不同随机流时，第一步就掉到 2–4 dB（看起来像实现不一致）；
+两侧都强制 `z = 0` 后：
+
+| 张量 | rust-cpu vs pytorch |
+|------|---------------------|
+| 预填充 `lm_hidden` / `residual_hidden` | 43.84 / 44.54 dB |
+| `step_0_lm_hidden` / `pred_feat` / `residual_hidden` | 30.91 / 27.48 / 40.61 dB |
+| step 1–7 各张量 | 26.7 – 34.1 dB |
+
+即 **LM 解码实现与参考一致**；此前的低 SNR 是采样随机性造成的假象。
+
+## ⚠️ 已知问题：Vulkan 后端的构建间非确定性
+
+同一源码、同一二进制连跑结果一致，但**重新构建后结果会变**：
+
+| 运行 | `step_m1_lm_hidden` rms | 与 CPU 的 corr |
+|------|--------------------------|----------------|
+| 旧构建 | 0.5327 | 1.000000 |
+| 新构建 | 1.6872 | 0.099 |
+| 回退到同一 commit 重建 | 1.6872 | 0.099 |
+
+排除项：进程间可复现；换 bf16 + naive matmul 同样出现（与精度无关）；`~/.cache/cubecl`
+不存在。**推测**与 cubecl 在 Vulkan 上的 kernel 选择有关，尚未定位。
+
+影响：所有 f16 的逐 token 数值结论需要在固定构建下重验。跟踪项见
+[TODO.md](./TODO.md) 第 0 项。
+
 ## stop head 排查（2026-11-17）
 
 加了 `VOXCPM_DEBUG_STOP=1` 打印每步 stop logits（`DitStep` 内，`voxcpm-rs`

@@ -58,4 +58,8 @@ f32 计算再转回，注释写明 RADV 自 Mesa 25.2 起只强制支持 bf16 �
 
 - **能用**：Vulkan + f16（RTF 3.9–5.6）、wgpu + f16（RTF 5.66），均比 PyTorch CPU（8.29）快。
 - **不能用**：bf16（缺 matmul）、f32（显存不足）、Burn CPU（RTF 338）。
-- f16 的精度风险尚未量化：本次只验证了「能跑」，没有与 PyTorch bf16 做 SNR 对比。
+- f16 的精度已部分量化（见 [f16-precision.md](./f16-precision.md)）：VAE 编码 29.40 dB、
+  特征编码 42.76 dB；LM 解码的逐 token 对照见 [lm-decode-alignment.md](./lm-decode-alignment.md)。
+  端到端指标仍未做。
+- **注意**：Vulkan 后端存在构建间非确定性（同一二进制可复现，重建后结果改变），
+  上述 f16 数字均需在固定构建下重验，见 [TODO.md](./TODO.md) 第 0 项。

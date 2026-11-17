@@ -146,6 +146,21 @@ wgpu f32 失败的直接原因：4.4 GB bf16 权重在 f32 下是 **8.7 GB**，�
 显存来自共享内存（27 GB 总量，此时已用约 16 GB），放不下权重 + 激活 + workspace。
 这不是 shader 问题，是容量问题。
 
+## 后续进展
+
+本 ADR 之后的实测细节分散在 `docs/research/voxcpm/`，本文件不再逐条同步：
+
+| 文档 | 内容 |
+|------|------|
+| [README.md](../../research/voxcpm/README.md) | 总览：环境、分段耗时、Burn 各后端、LM 对齐摘要 |
+| [burn-gpu-backends.md](../../research/voxcpm/burn-gpu-backends.md) | bf16 缺 matmul 的三种绕法（换精度 / 朴素 matmul / 等驱动） |
+| [f16-precision.md](../../research/voxcpm/f16-precision.md) | 逐阶段 f16 vs PyTorch SNR |
+| [lm-decode-alignment.md](../../research/voxcpm/lm-decode-alignment.md) | LM 解码逐 token 对照；Vulkan 构建间非确定性 |
+| [TODO.md](../../research/voxcpm/TODO.md) | 未完成项与阻塞项 |
+
+其中一项会影响本 ADR 的判断：Vulkan 后端存在**构建间非确定性**（同一二进制可复现，
+重新构建后结果改变，bf16/f16 均如此），定位前所有 f16 数值结论都需重验。
+
 ## 相关
 
 - [0010](./0010-demucs-wgpu-backend.md) demucs 的自研 WGSL 路径

@@ -43,7 +43,9 @@ voxlab-dump --model-dir <dir> --out <f32le> <audio|encode|vae|generate> [参数]
 
 - 没有做端到端听感/客观指标（如 SI-SDR）对比：自回归采样本身发散，单次对比不可靠，
   需要多 seed 平均。
-- LM 解码阶段（`base_lm` / `residual_lm`）尚未单独 dump：这两个是自回归的，
-  需要逐 token 对齐，工作量比前两段大。
+- LM 解码阶段的逐 token 对照已补上，见 [lm-decode-alignment.md](./lm-decode-alignment.md)：
+  在 `z = 0` 控制下 rust-cpu 与 PyTorch 一致到 26.7–40.6 dB。但该结论基于当时的构建，
+  而 Vulkan 后端已被发现存在构建间非确定性（见 [TODO.md](./TODO.md) 第 0 项），
+  f16 侧的逐 token 数字需要在固定构建下重验。
 - f32 参考在 780M 上无法运行（8.7 GB 权重 vs 4 GB VRAM + GTT），所以 f16 与 f32 的差别
   只能通过 CPU f32（`rust-cpu`）间接比较。
