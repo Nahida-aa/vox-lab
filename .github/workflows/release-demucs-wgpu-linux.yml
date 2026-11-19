@@ -1,0 +1,89 @@
+name: release-demucs-wgpu-linux
+
+# 手动触发: 构建 demucs-wgpu 的 Linux (x86_64-unknown-linux-gnu) 资产并上传到
+# vox-lab 对应 GitHub Release。
+#
+# 资产形态: zip, 解压目录即 bin dir。wgpu 后端无外部动态库 (经系统 Vulkan), 单 exe 塞 zip。
+# 命名: demucs-wgpu-x86_64-unknown-linux-gnu.zip, 与 demucs-burn / Windows 形态一致。
+#
+# 与 burn/tch workflow 的差异: packages/demucs-wgpu 是独立 workspace (自带
+# Cargo.lock 与 target), 必须在其目录内构建, 不能用主 workspace 的 -p 选择器。
+# 依赖 submodule/demucs-wgpu 的 demucs-core (path 依赖), checkout 必须 recursive。
+# 已知前提: 冒烟仅验证 exe 可启动 (--help exit 0): runner 无 Vulkan/GPU。
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "构建并上传 demucs-wgpu 到 demucs-wgpu-v0.1.0"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: build release bin
+        shell: bash
+        working-directory: packages/demucs-wgpu
+        run: |
+          set -euo pipefail
+          cargo build --release --bin demucs-wgpu
+          ls -la target/release/demucs-wgpu
+
+      - name: smoke test
+        shell: bash
+        working-directory: packages/demucs-wgpu
+        run: |
+          set -euo pipefail
+          ./target/release/demucs-wgpu --help >/dev/null
+          echo "smoke ok"
+
+      - name: package zip + sha256
+        shell: bash
+        working-directory: packages/demucs-wgpu
+        run: |
+          set -euo pipefail
+          out_dir="$RUNNER_TEMP/out"
+          mkdir -p "$out_dir"
+          staging="$out_dir/demucs-wgpu"
+          mkdir -p "$staging"
+          cp target/release/demucs-wgpu "$staging/"
+          # zip 内文件平铺到根 (解压目录即 bin dir)
+          pushd "$staging" >/dev/null
+          asset="$out_dir/demucs-wgpu-x86_64-unknown-linux-gnu.zip"
+          zip -q -r "$asset" .
+          popd >/dev/null
+          hash=$(sha256sum "$asset" | awk '{print $1}')
+          echo "demucs-wgpu-x86_64-unknown-linux-gnu.zip  $hash  $(stat -c%s "$asset")" | tee -a "$out_dir/sha256.txt"
+
+      - name: create release (幂等)
+        shell: bash
+        run: |
+          gh release create demucs-wgpu-v0.1.0 --title "demucs-wgpu v0.1.0" --notes "demucs-wgpu Linux 资产 (WGSL kernel, Vulkan, zip 平铺)" 2>/dev/null || echo "release 已存在, 继续"
+
+      - name: upload asset to release
+        if: github.event.inputs.upload != 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload demucs-wgpu-v0.1.0 "$RUNNER_TEMP/out/demucs-wgpu-x86_64-unknown-linux-gnu.zip" --clobber
+
+      - name: print sha256
+        shell: bash
+        run: cat "$RUNNER_TEMP/out/sha256.txt"
