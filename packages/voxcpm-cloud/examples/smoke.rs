@@ -40,21 +40,25 @@ struct Args {
     cfg: f64,
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let cloud = VoxCPMCloud::new(VoxCPMCloudConfig {
         api_url: args.api_url,
         control_instruction: None,
-    })?;
+    })
+    .await?;
 
     println!("[voxcpm-cloud] generating via cloud backend...");
-    let result = cloud.generate(
-        &args.text,
-        &args.reference.to_string_lossy(),
-        args.prompt.as_deref(),
-        args.cfg,
-    )?;
+    let result = cloud
+        .generate(
+            &args.text,
+            &args.reference.to_string_lossy(),
+            args.prompt.as_deref(),
+            args.cfg,
+        )
+        .await?;
 
     if let Some(parent) = args.out.parent() {
         std::fs::create_dir_all(parent).ok();

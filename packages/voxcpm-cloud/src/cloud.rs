@@ -37,11 +37,12 @@ pub struct TtsResult {
 }
 
 impl VoxCPMCloud {
-    pub fn new(config: VoxCPMCloudConfig) -> anyhow::Result<Self> {
+    /// 异步构造：gradio 的 async API（不自建 runtime，避免嵌套 runtime panic）。
+    pub async fn new(config: VoxCPMCloudConfig) -> anyhow::Result<Self> {
         let base_url = config
             .api_url
             .unwrap_or_else(|| DEFAULT_API_URL.to_string());
-        let client = Client::new_sync(&base_url, ClientOptions::default())?;
+        let client = Client::new(&base_url, ClientOptions::default()).await?;
         Ok(Self {
             client,
             control_instruction: config.control_instruction.unwrap_or_default(),
@@ -51,7 +52,7 @@ impl VoxCPMCloud {
     /// Generate speech from `text` using a local reference WAV file (`reference_wav_path`).
     /// `prompt_text` is the original-language transcription of the reference audio (improves
     /// cloning quality); pass empty/None when unavailable.
-    pub fn generate(
+    pub async fn generate(
         &self,
         text: &str,
         reference_wav_path: &str,
@@ -76,7 +77,7 @@ impl VoxCPMCloud {
             PredictionInput::from_value(""),
         ];
 
-        let outputs = self.client.predict_sync("/generate", inputs)?;
+        let outputs = self.client.predict("/generate", inputs).await?;
 
         let audio = outputs
             .into_iter()
@@ -86,7 +87,7 @@ impl VoxCPMCloud {
             })
             .ok_or_else(|| anyhow!("generate 返回无音频 FileData"))?;
 
-        let wav_bytes = audio.download_sync(None)?;
+        let wav_bytes = audio.download(None).await?;
         let (samples, sample_rate) = wav::read_wav(&wav_bytes)?;
         let (samples, sample_rate) = if sample_rate != TARGET_SAMPLE_RATE {
             (
