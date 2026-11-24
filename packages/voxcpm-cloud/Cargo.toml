@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gradio = { git = "https://github.com/JacobLinCool/gradio-rs", tag = "v0.4.2" }
+# Nahida-aa fork: v0.4.3 给 boxed future 加 Send，消费方可在 tokio::spawn 里 await。
+gradio = { git = "https://github.com/Nahida-aa/gradio-rs", tag = "v0.4.3" }
 vox-core = { path = "../vox-core" }
 anyhow = "1"
 serde_json = "1"
